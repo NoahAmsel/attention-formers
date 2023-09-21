@@ -1,6 +1,8 @@
 """For models that we construct instead of training, we can do away with
 a lot of the infrastructure.
 """
+from itertools import product
+from math import pi
 
 import torch
 from tqdm import tqdm
@@ -51,6 +53,16 @@ class FullRankSolution(Rank1HardTention):
         self.ks[0] = torch.eye(self.dim)
 
 
+class QQTention(Rank1HardTention):
+    def __init__(self, dim, nheads):
+        super().__init__(dim=dim, nheads=nheads, rank=1)
+
+    def init(self):
+        self.qs.data = torch.randn_like(self.qs)
+        self.qs.data /= self.qs.norm(dim=-1)[:, :, None]
+        self.ks.data = -self.qs
+    
+
 def my_angular_error(model, batch):
     sentence, label = batch
     prediction = model(sentence)
@@ -59,28 +71,42 @@ def my_angular_error(model, batch):
     return torch.arccos(torch.clip(torch.einsum("btd,btd->bt", prediction, label) / normalizing_factors, min=-1, max=1)).mean()
 
 
-def my_test(model, data_loader, num_batches):
-    return sum(my_angular_error(model, next(iter(data_loader))) for _ in tqdm(range(num_batches))) / num_batches
+def my_test(model, data_loader, num_batches, tqdm=False):
+    batch_range = range(num_batches)
+    if tqdm: batch_range = tqdm(batch_range)
+    return sum(my_angular_error(model, next(iter(data_loader))) for _ in batch_range) / num_batches
 
 
 if __name__ == "__main__":
+    import pandas as pd
     from task import FarthestPointDataset
 
-    dim = 2**8
-    ntokens = 2**8
-    nheads = 2**8
+    rows = []
+    # dim_set = [2, 3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256, 512]
+    ntokens_set = [4, 6, 8, 12, 16, 24, 32, 64, 128, 256, 512]
+    dim_set = [8]
+    ntokens_set = [2**i for i in range(2, 14)]
+    for dim, ntokens in tqdm(product(dim_set, ntokens_set)):
+        nheads = 2 ** 9
 
-    batch_size = 4
-    num_batches = 8
-    device = 'mps'
-    data_loader = torch.utils.data.DataLoader(
-        FarthestPointDataset(ntokens, dim, device=device),
-        batch_size=batch_size,
-        num_workers=0
-    )
+        batch_size = 1
+        num_batches = 64
+        device = "cuda"
+        data_loader = torch.utils.data.DataLoader(
+            FarthestPointDataset(ntokens, dim, device=device),
+            batch_size=batch_size,
+            num_workers=0
+        )
 
-    model = FullRankSolution(dim)
-    model = Rank1HardTention(dim, nheads, rank=5)
-    model.to(device)
+        # model = QQTention(dim, nheads).to(device)
+        num_runs = 32
+        error = sum(my_test(Rank1HardTention(dim, nheads, 1).to(device), data_loader, num_batches).item() for _ in range(num_runs)) / num_runs
+        # error = sum(my_test(QQTention(dim, nheads).to(device), data_loader, num_batches).item() for _ in range(num_runs)) / num_runs
+        rows.append(dict(
+            dim=dim,
+            ntokens=ntokens,
+            error=error * 180/pi
+        ))
 
-    print(my_test(model, data_loader, num_batches))
+    df = pd.DataFrame(rows)
+    df.to_csv("results_qk_d16.csv", float_format='{:,.2f}'.format, index=False)
