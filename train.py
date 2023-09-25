@@ -76,7 +76,7 @@ def train(config):
     data = torch.utils.data.DataLoader(
         FarthestPointDataset(config.ntokens, config.dim),
         batch_size=config.batch_size,
-        num_workers=4
+        num_workers=config.num_workers
     )
     lit_model = LitSequenceRegression(**config)
 
@@ -89,10 +89,10 @@ def train(config):
         logger = [csv_logger]
     else:
         wandb_logger = WandbLogger(
-            name=config.experiment_name,
+            name=str(config.experiment_name),
             save_dir=config.wandb_log_parent_dir,
-            version=config.experiment_version,
-            project="universal-prompting",
+            version=f"{config.experiment_name}-{config.experiment_version}",
+            project="attention-rank",
             entity="noahamselsteam",
         )
         logger = [csv_logger, wandb_logger]
@@ -100,7 +100,7 @@ def train(config):
     trainer = pl.Trainer(
         limit_train_batches=100,
         limit_test_batches=100,
-        max_epochs=200,
+        max_epochs=config.epochs,
         logger=logger,
         callbacks=[pl.pytorch.callbacks.LearningRateMonitor(logging_interval='epoch')]
     )

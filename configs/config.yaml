@@ -1,0 +1,30 @@
+# Task / Model
+dim: 100
+ntokens: 100
+rank: 100
+nheads: 1
+
+# Training / Logging
+batch_size: 64
+experiment_name: ???
+experiment_version: ???
+git_hash: ???
+skip_wandb: ${debug}
+debug: False
+
+code_dir: /home/nia4240/attention-formers
+csv_log_dir: ${code_dir}/csv_logs
+wandb_log_parent_dir: ${code_dir}/wandb_logs
+slurm_log_dir: ${code_dir}/slurm_logs
+
+overlay: /scratch/nia4240/overlay-50G-10M.ext3
+conda_env: attention
+
+slurm:
+  open_mode: append
+  output: ${slurm_log_dir}/%A_%a.out
+  error: ${slurm_log_dir}/%A_%a.err
+  time: 0:05:00
+  mem: 64G
+  cpus_per_task: 8
+  gpus_per_node: 1

@@ -1,4 +1,7 @@
 csv_logs
+slurm
+slurm_logs
+wandb
 
 # Github automatically generated:
 # Byte-compiled / optimized / DLL files
