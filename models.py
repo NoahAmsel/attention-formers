@@ -1,6 +1,5 @@
 from math import sqrt
 
-import lightning.pytorch as pl
 import torch
 
 

@@ -58,7 +58,7 @@ class LitSequenceRegression(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config.lr)
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=.1, patience=10, threshold=.001, verbose=True)
+            optimizer, factor=.1, patience=10, threshold=.01, verbose=True)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -99,7 +99,6 @@ def train(config):
 
     trainer = pl.Trainer(
         limit_train_batches=100,
-        limit_test_batches=100,
         max_epochs=config.epochs,
         logger=logger,
         callbacks=[pl.pytorch.callbacks.LearningRateMonitor(logging_interval='epoch')]
@@ -109,7 +108,17 @@ def train(config):
     trainer.fit(model=lit_model, train_dataloaders=data)
     # if not config.skip_wandb:
     #     wandb_logger.experiment.unwatch(lit_model)
-    # trainer.test(model=lit_model, dataloaders=data)
+
+
+# def test_model(lit_model, config):
+#     lit_model = LitSequenceRegression(**config)????
+#     data = torch.utils.data.DataLoader(
+#         FarthestPointDataset(config.ntokens, config.dim),
+#         batch_size=config.batch_size,
+#         num_workers=config.num_workers
+#     )
+#     tester = pl.Trainer(limit_test_batches=1000)
+#     tester.test(model=lit_model, dataloaders=data)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,15 @@
+# Debugging and set up
+- 38094990
+    - testing things with one full rank head
+    - everything works. after 200 epochs, loss is 0.0004
+- 38095115
+    - retrying with 400 epochs
+    - noticing that GPU utilization is quite low
+- 38095251
+    - retrying with bigger batch size, longer time
+    - after 400 epochs, loss is 0.0002
+- 38096152
+    - retrying with 100 heads of rank 50
+    - making the scheduler a bit more aggresive
+- 38102997
+    - try puting the dataloader on the GPU

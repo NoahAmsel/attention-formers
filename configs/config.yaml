@@ -1,13 +1,13 @@
 # Task / Model
 dim: 100
 ntokens: 100
-rank: 100
-nheads: 1
+rank: 50
+nheads: 100
 
 # Training / Logging
-batch_size: 256
+batch_size: 64
 lr: 1e-2
-epochs: 400
+epochs: 250
 num_workers: 16
 experiment_name: ???
 experiment_version: ???
@@ -27,7 +27,7 @@ slurm:
   open_mode: append
   output: ${slurm_log_dir}/%A_%a.out
   error: ${slurm_log_dir}/%A_%a.err
-  time: 0:15:00
+  time: 1:00:00
   mem: 64G
   cpus_per_task: ${num_workers}
   gpus_per_node: 1
