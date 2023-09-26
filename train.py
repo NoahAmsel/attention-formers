@@ -110,17 +110,6 @@ def train(config):
     #     wandb_logger.experiment.unwatch(lit_model)
 
 
-# def test_model(lit_model, config):
-#     lit_model = LitSequenceRegression(**config)????
-#     data = torch.utils.data.DataLoader(
-#         FarthestPointDataset(config.ntokens, config.dim),
-#         batch_size=config.batch_size,
-#         num_workers=config.num_workers
-#     )
-#     tester = pl.Trainer(limit_test_batches=1000)
-#     tester.test(model=lit_model, dataloaders=data)
-
-
 if __name__ == "__main__":
     train(oc.create(dict(
         dim=100,

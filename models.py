@@ -61,8 +61,8 @@ class MultiheadSelfAttention(torch.nn.Module):
         But it seems wrong that the scale of Q and K should change based on the number of heads.
         Also we have a combined VO matrix of dimension dim x (nheads * dim) which *should* change with nheads
         """
-        QK_a = torch.sqrt(6.0 / (self.rank + self.dim))
-        VO_a = torch.sqrt(6.0 / (self.nheads * self.dim + self.dim))
+        QK_a = sqrt(6.0 / (self.rank + self.dim))
+        VO_a = sqrt(6.0 / (self.nheads * self.dim + self.dim))
         torch.nn.init.uniform_(self.Q, -QK_a, QK_a)
         torch.nn.init.uniform_(self.K, -QK_a, QK_a)
         torch.nn.init.uniform_(self.VO, -VO_a, VO_a)
@@ -84,11 +84,24 @@ class MultiheadSelfAttention(torch.nn.Module):
         return torch.einsum("bthu,bud,hde->bte", attn_matrix, x, self.VO)
 
     @classmethod
-    def farthest_init(cls, dim, temperature=10000, device=None, dtype=None):
+    def farthest_init(cls, dim, temperature=1e6, device=None, dtype=None):
         model = cls(dim=dim, rank=dim, nheads=1, device=device, dtype=dtype)
         model.Q.data[0,:,:] = -temperature * torch.eye(model.dim, device=device, dtype=dtype)
         model.K.data[0,:,:] = torch.eye(model.dim, device=device, dtype=dtype)
         model.VO.data[0,:,:] = torch.eye(model.dim, device=device, dtype=dtype)
+        return model
+
+    @classmethod
+    def random_construction(cls, dim, rank, nheads, temperature=1e6, device=None, dtype=None):
+        model = cls(dim=dim, rank=rank, nheads=nheads, device=device, dtype=dtype)
+        # TODO should really make temperature infinity but whatever
+        lr = torch.eye(rank, dim)
+        for head in range(nheads):
+            rotation, _ = torch.linalg.qr(torch.randn((dim, dim)))
+            rotated_lr = lr @ rotation
+            model.Q.data[head,:,:] = -temperature * rotated_lr
+            model.K.data[head,:,:] = rotated_lr
+            model.VO.data[head,:,:] = torch.eye(dim, device=device, dtype=dtype) / nheads
         return model
 
 
