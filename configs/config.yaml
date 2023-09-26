@@ -27,7 +27,8 @@ slurm:
   open_mode: append
   output: ${slurm_log_dir}/%A_%a.out
   error: ${slurm_log_dir}/%A_%a.err
-  time: 1:00:00
+  # must be HH:MM:SS. Not 1:00:00!!
+  time: 01:00:00
   mem: 64G
   cpus_per_task: ${num_workers}
   gpus_per_node: 1

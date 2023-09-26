@@ -13,3 +13,9 @@
     - making the scheduler a bit more aggresive
 - 38102997
     - try puting the dataloader on the GPU
+- 38106043
+    - 3x3x3 sweep of lr, nheads, and rank
+    - dim = 100, ntokens = 100
+    - noticing that I'm probably not initializing right, when there are more heads, VO should be initialized smaller
+    - but eventually it recovers from the bad initialization. can't do better than 0.006
+    - what pytorch does it Xavier initialization where the in-dimension and out-dimension are both embedding dimension. but for them, the VO matrix is also low rank! and they initialize the two parts separately

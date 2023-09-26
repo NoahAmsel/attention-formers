@@ -43,15 +43,32 @@ class MultiheadSelfAttention(torch.nn.Module):
     def __init__(self, dim, rank, nheads, device=None, dtype=None):
         super().__init__()
         self.dim = dim
+        self.rank = rank
+        self.nheads = nheads
         self.Q = torch.nn.Parameter(torch.empty((nheads, rank, dim), device=device, dtype=dtype))
         self.K = torch.nn.Parameter(torch.empty((nheads, rank, dim), device=device, dtype=dtype))
         self.VO = torch.nn.Parameter(torch.empty((nheads, dim, dim), device=device, dtype=dtype))
         self._reset_parameters()
 
     def _reset_parameters(self):
-        torch.nn.init.xavier_uniform_(self.Q)
-        torch.nn.init.xavier_uniform_(self.K)
-        torch.nn.init.xavier_uniform_(self.VO)        
+        """Pytorch initializes using Xavier initialization, where the fan-in / fan-out are calculated as follows
+        - combined Q matrix of dimension dim x dim
+        - combined K matrix of dimension dim x dim
+        - combined V matrix of dimension dim x dim
+        - O matrix of dimension dim x dim
+
+        For Q, K, and V, it's really (nheads * rank) x dim, since they set rank = dim / nheads.
+        But it seems wrong that the scale of Q and K should change based on the number of heads.
+        Also we have a combined VO matrix of dimension dim x (nheads * dim) which *should* change with nheads
+        """
+        QK_a = torch.sqrt(6.0 / (self.rank + self.dim))
+        VO_a = torch.sqrt(6.0 / (self.nheads * self.dim + self.dim))
+        torch.nn.init.uniform_(self.Q, -QK_a, QK_a)
+        torch.nn.init.uniform_(self.K, -QK_a, QK_a)
+        torch.nn.init.uniform_(self.VO, -VO_a, VO_a)
+        # torch.nn.init.xavier_uniform_(self.Q)
+        # torch.nn.init.xavier_uniform_(self.K)
+        # torch.nn.init.xavier_uniform_(self.VO)        
 
     def assemble_QK(self, head_ix):
         return self.Q.data[head_ix, :, :].T @ self.K.data[head_ix, :, :]
