@@ -1,12 +1,12 @@
 # Task / Model
 dim: 100
 ntokens: 100
-rank: 50
-nheads: 100
+rank: ???
+nheads: ???
 
 # Training / Logging
 batch_size: 64
-lr: 1e-2
+lr: ???
 epochs: 250
 num_workers: 16
 experiment_name: ???
@@ -18,8 +18,9 @@ debug: False
 code_dir: /home/nia4240/attention-formers
 csv_log_dir: ${code_dir}/csv_logs
 wandb_log_parent_dir: ${code_dir}
-slurm_log_dir: ${code_dir}/slurm_logs
 
+# Slurm and environment set up
+slurm_log_dir: ${code_dir}/slurm_logs
 overlay: /scratch/nia4240/overlay-50G-10M.ext3
 conda_env: attention
 
@@ -28,7 +29,7 @@ slurm:
   output: ${slurm_log_dir}/%A_%a.out
   error: ${slurm_log_dir}/%A_%a.err
   # must be HH:MM:SS. Not 1:00:00!!
-  time: 01:00:00
+  time: 00:30:00
   mem: 64G
   cpus_per_task: ${num_workers}
   gpus_per_node: 1

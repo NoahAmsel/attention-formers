@@ -33,8 +33,10 @@ class LitSequenceRegression(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.model(x)
-        loss = torch.nn.functional.mse_loss(y_hat, y)
-        self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True)
+        # MSE loss averages all the entry-wise errors
+        # but we don't want to average over dimension of the vectors
+        loss = torch.nn.functional.mse_loss(y_hat, y) * y.shape[-1]
+        self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
         return loss
 
     def on_train_epoch_end(self):
@@ -51,14 +53,19 @@ class LitSequenceRegression(pl.LightningModule):
     def test_step(self, batch, batch_ix):
         x, y = batch
         y_hat = self.model(x)
-        loss = torch.nn.functional.mse_loss(y_hat, y)
+        # MSE loss averages all the entry-wise errors
+        # but we don't want to average over dimension of the vectors
+        loss = torch.nn.functional.mse_loss(y_hat, y) * y.shape[-1]
         self.log("test_loss", loss, on_step=False, on_epoch=True, logger=True)
         return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config.lr)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=.1, patience=10, threshold=.01, verbose=True)
+        # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer, factor=.1, patience=10, threshold=.01, verbose=True)
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=self.config.epochs, verbose=True
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -116,13 +123,15 @@ if __name__ == "__main__":
         ntokens=100,
         rank=100,
         nheads=1,
-        lr=1e-2,
         batch_size=64,
+        lr=1e-2,
+        epochs=250,
+        num_workers=4,
         experiment_name="default_experiment",
         experiment_version=None,
+        skip_wandb=True,
+        debug=True,
         code_dir="/home/nia4240/attention-formers",
         csv_log_dir="/home/nia4240/attention-formers/csv_logs",
         wandb_log_parent_dir="/home/nia4240/attention-formers/wandb_logs",
-        skip_wandb=True,
-        debug=True,
     )))

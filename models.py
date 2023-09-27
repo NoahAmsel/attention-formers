@@ -105,6 +105,15 @@ class MultiheadSelfAttention(torch.nn.Module):
         return model
 
 
+class SeparateMultiheadSelfAttention(MultiheadSelfAttention):
+    def forward(self, x, y):
+        # x is batch_size, ntokens, dim
+        # self.Q and self.K are each rank by dim
+        # attn_matrix is batch_size, ntokens, ntokens
+        attn_matrix = torch.nn.Softmax(dim=2)(torch.einsum("bd,hrd,hre,bue->bhu", y, self.Q, self.K, x) / sqrt(self.dim))
+        return torch.einsum("bhu,bud,hde->be", attn_matrix, x, self.VO)
+
+
 class MergedLinearFormer(torch.nn.Module):
     def __init__(self, dim, batch_first=True, device=None, dtype=None):
         super().__init__()

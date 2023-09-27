@@ -3,8 +3,8 @@ import lightning as pl
 from omegaconf import OmegaConf as oc
 import torch
 
-from models import MultiheadSelfAttention
-from task import FarthestPointDataset
+from models import MultiheadSelfAttention, SeparateMultiheadSelfAttention
+from task import FarthestPointDataset, FarthestPointSeparateDataset
 
 
 class Tester(pl.LightningModule):
@@ -12,18 +12,24 @@ class Tester(pl.LightningModule):
         super().__init__()
         self.model = model
     def test_step(self, batch, batch_ix):
-        x, y = batch
-        y_hat = self.model(x)
-        loss = torch.nn.functional.mse_loss(y_hat, y)
+        x, y, label = batch
+        label_hat = self.model(x, y)
+        # MSE loss averages all the entry-wise errors
+        # but we don't want to average over dimension of the vectors
+        loss = torch.nn.functional.mse_loss(label_hat, label) * label.shape[-1]
+        # # maybe the scaling is wrong. rescale. doesn't work
+        # nbatches, ntokens, ndims = y.shape
+        # scaled_y_hat = y_hat / torch.norm(y_hat, dim=2)[:, :, None]
+        # loss = torch.norm(scaled_y_hat - y) ** 2 / (nbatches * ntokens)
         self.log("test_loss", loss, on_step=False, on_epoch=True, logger=True)
         return loss
 
 
 def test_random_construction(**config):
     config = oc.create(config)
-    lit_model = Tester(MultiheadSelfAttention.random_construction(config.dim, config.rank, config.nheads))
+    lit_model = Tester(SeparateMultiheadSelfAttention.random_construction(config.dim, config.rank, config.nheads))
     data = torch.utils.data.DataLoader(
-        FarthestPointDataset(config.ntokens, config.dim),
+        FarthestPointSeparateDataset(config.ntokens, config.dim),
         batch_size=config.batch_size,
         num_workers=config.num_workers
     )
@@ -35,10 +41,10 @@ if __name__ == "__main__":
     test_random_construction(
         dim=100,
         rank=100,
-        nheads=1000,
-        ntokens=100,
-        batch_size=64,
-        num_batches=100,
+        nheads=1,
+        ntokens=1000,
+        batch_size=256,
+        num_batches=50,
         num_workers=4,
     )
     # Fire(test_random_construction)

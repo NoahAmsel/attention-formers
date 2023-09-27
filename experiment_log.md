@@ -19,3 +19,11 @@
     - noticing that I'm probably not initializing right, when there are more heads, VO should be initialized smaller
     - but eventually it recovers from the bad initialization. can't do better than 0.006
     - what pytorch does it Xavier initialization where the in-dimension and out-dimension are both embedding dimension. but for them, the VO matrix is also low rank! and they initialize the two parts separately
+- 38107893
+    - attempted to fix the initialization problem so that scaling nheads doesn't break things
+- 38115797
+    - retrying full rank with lr = 1e-3
+    - too slow. hit max iter without learning the right thing?
+- command line
+    - trying with cosine annealing starting from lr = 1e-2
+    - my job timed out, maybe worth trying this one again?
