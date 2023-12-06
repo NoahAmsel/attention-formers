@@ -4,8 +4,8 @@ from lightning.pytorch.loggers import CSVLogger, WandbLogger
 from omegaconf import OmegaConf as oc
 import torch
 
-from models import MultiheadSelfAttention
-from task import FarthestPointDataset
+from models import SoftMultiheadAttention, HardMultiheadAttention
+from task import FarthestPointSeparateDataset
 
 
 def compare_to_identity(matrix):
@@ -21,41 +21,41 @@ def compare_to_identity(matrix):
 
 
 class LitSequenceRegression(pl.LightningModule):
-    def __init__(self, **config):
+    def __init__(self, model, **config):
         super().__init__()
         self.save_hyperparameters()
-        self.model = MultiheadSelfAttention(self.config.dim, self.config.rank, self.config.nheads)
+        self.model = model
 
     @property
     def config(self):
         return self.hparams
 
-    def training_step(self, batch, batch_idx):
-        x, y = batch
-        y_hat = self.model(x)
+    def loss(self, batch):
+        X, Y, labels = batch
+        labels_hat = self.model(X, Y)
         # MSE loss averages all the entry-wise errors
-        # but we don't want to average over dimension of the vectors
-        loss = torch.nn.functional.mse_loss(y_hat, y) * y.shape[-1]
+        # but we don't want to average over dimension of the vectors,
+        # so mulitply by dim
+        return torch.nn.functional.mse_loss(labels_hat, labels) * Y.shape[1]
+
+    def training_step(self, batch, batch_idx):
+        loss = self.loss(batch)
         self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
         return loss
 
     def on_train_epoch_end(self):
-        # QK should be like -I, not I. Hence the minus sign
-        QK_scale, QK_diag_error, QK_off_diag_error = compare_to_identity(-self.model.assemble_QK(0))
-        VO_scale, VO_diag_error, VO_off_diag_error = compare_to_identity(self.model.assemble_VO(0))
-        self.log("QK_scale", QK_scale, logger=True)
-        self.log("QK_diag_error", QK_diag_error, logger=True)
-        self.log("QK_off_diag_error", QK_off_diag_error, logger=True)
-        self.log("VO_scale", VO_scale, logger=True)
-        self.log("VO_diag_error", VO_diag_error, logger=True)
-        self.log("VO_off_diag_error", VO_off_diag_error, logger=True)
+        if self.config.get(compare_to_identity, False):
+            QK_scale, QK_diag_error, QK_off_diag_error = compare_to_identity(self.model.assemble_QK(0))
+            VO_scale, VO_diag_error, VO_off_diag_error = compare_to_identity(self.model.assemble_VO(0))
+            self.log("QK_scale", QK_scale, logger=True)
+            self.log("QK_diag_error", QK_diag_error, logger=True)
+            self.log("QK_off_diag_error", QK_off_diag_error, logger=True)
+            self.log("VO_scale", VO_scale, logger=True)
+            self.log("VO_diag_error", VO_diag_error, logger=True)
+            self.log("VO_off_diag_error", VO_off_diag_error, logger=True)
 
     def test_step(self, batch, batch_ix):
-        x, y = batch
-        y_hat = self.model(x)
-        # MSE loss averages all the entry-wise errors
-        # but we don't want to average over dimension of the vectors
-        loss = torch.nn.functional.mse_loss(y_hat, y) * y.shape[-1]
+        loss = self.loss(batch)
         self.log("test_loss", loss, on_step=False, on_epoch=True, logger=True)
         return loss
 
@@ -75,17 +75,27 @@ class LitSequenceRegression(pl.LightningModule):
         }
 
 
+def dataset(config):
+    return torch.utils.data.DataLoader(
+        FarthestPointSeparateDataset(
+            config.dim,
+            config.num_points,
+            config.num_queries,
+            config.double_points
+        ),
+        batch_size=config.batch_size,
+        num_workers=config.num_workers
+    )
+
+
 def train(config):
     # Update git hash with current commit
     repo = git.Repo(config.code_dir, search_parent_directories=True)
     config.git_hash = repo.head.object.hexsha
 
-    data = torch.utils.data.DataLoader(
-        FarthestPointDataset(config.ntokens, config.dim),
-        batch_size=config.batch_size,
-        num_workers=config.num_workers
-    )
-    lit_model = LitSequenceRegression(**config)
+    data = dataset(**config)
+    model = SoftMultiheadAttention(config.dim, config.rank, config.nheads)
+    lit_model = LitSequenceRegression(model, **config)
 
     csv_logger = CSVLogger(
         save_dir=config.csv_log_dir,
@@ -115,6 +125,13 @@ def train(config):
     trainer.fit(model=lit_model, train_dataloaders=data)
     # if not config.skip_wandb:
     #     wandb_logger.experiment.unwatch(lit_model)
+
+
+def test(model, config):
+    data = dataset(config)
+    lit_model = LitSequenceRegression(model, **config)
+    tester = pl.Trainer(limit_test_batches=config.num_batches, logger=False)
+    tester.test(model=lit_model, dataloaders=data)
 
 
 if __name__ == "__main__":
