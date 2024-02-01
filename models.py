@@ -53,7 +53,7 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
         raise NotImplementedError
 
     @classmethod
-    def farthest_init(cls, dim, temperature=1e6, device=None, dtype=None):
+    def perfect_construction(cls, dim, temperature=1, device=None, dtype=None):
         model = cls(dim=dim, rank=dim, nheads=1, device=device, dtype=dtype)
         model.Q.data[0,:,:] = temperature * torch.eye(model.dim, device=device, dtype=dtype)
         model.K.data[0,:,:] = torch.eye(model.dim, device=device, dtype=dtype)
@@ -61,7 +61,7 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
         return model
 
     @classmethod
-    def random_construction(cls, dim, rank, nheads, temperature=1e6, device=None, dtype=None):
+    def random_construction(cls, dim, rank, nheads, temperature=1, device=None, dtype=None):
         model = cls(dim=dim, rank=rank, nheads=nheads, device=device, dtype=dtype)
         # TODO should really make temperature infinity but whatever
         lr = torch.eye(rank, dim)
@@ -90,14 +90,6 @@ class HardMultiheadAttention(AbstractMultiheadAttention):
         attended_to = torch.argmax(self.inside_heads(X, Y), dim=3)
         # TODO: this is very wasteful. there should be a better way
         attn_matrix = torch.nn.functional.one_hot(attended_to, num_classes=X.shape[2]).float()
-        # attn_matrix is batch_size, num queries, num heads, num keys
-        # X is batch_size, dim, num keys
+        # attn_matrix is batch_size, num queries, num heads, num points
+        # X is batch_size, dim, num points
         return torch.einsum("bqhk,bdk,hde->beq", attn_matrix, X, self.VO)
-
-    @classmethod
-    def farthest_init(cls, dim, device=None, dtype=None):
-        model = cls(dim, dim, nheads=1, device=device, dtype=dtype)
-        model.Q.data[0, :, :] = torch.eye(model.dim, device=device, dtype=dtype)
-        model.K.data[0, :, :] = torch.eye(model.dim, device=device, dtype=dtype)
-        model.VO.data[0, :, :] = torch.eye(model.dim, device=device, dtype=dtype)
-        return model
