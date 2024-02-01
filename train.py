@@ -4,8 +4,8 @@ from lightning.pytorch.loggers import CSVLogger, WandbLogger
 from omegaconf import OmegaConf as oc
 import torch
 
-from models import SoftMultiheadAttention, HardMultiheadAttention
-from task import FarthestPointSeparateDataset
+from models import SoftMultiheadAttention
+from task import NearestPointDataset
 
 
 class LitSequenceRegression(pl.LightningModule):
@@ -82,11 +82,10 @@ class PerfectTraining(LitSequenceRegression):
 
 def dataset(config):
     return torch.utils.data.DataLoader(
-        FarthestPointSeparateDataset(
+        NearestPointDataset(
             dim=config.dim,
             num_points=config.num_points,
             num_queries=config.num_queries,
-            double_points=False
         ),
         batch_size=config.batch_size,
         num_workers=config.num_workers
