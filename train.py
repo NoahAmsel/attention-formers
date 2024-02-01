@@ -31,28 +31,21 @@ class LitSequenceRegression(pl.LightningModule):
         return self.hparams
 
     def loss(self, batch):
+        # X has dimensions: (batch size, dim, num points)
+        # Y has dimensions: (batch size, dim, num queries)
+        # labels has dimensions: (batch size, dim, num queries)
         X, Y, labels = batch
+        _, dim, _ = labels.shape
         labels_hat = self.model(X, Y)
         # MSE loss averages all the entry-wise errors
         # but we don't want to average over dimension of the vectors,
         # so mulitply by dim
-        return torch.nn.functional.mse_loss(labels_hat, labels) * Y.shape[1]
+        return torch.nn.functional.mse_loss(labels_hat, labels) * dim
 
     def training_step(self, batch, batch_idx):
         loss = self.loss(batch)
         self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
         return loss
-
-    def on_train_epoch_end(self):
-        if self.config.get(compare_to_identity, False):
-            QK_scale, QK_diag_error, QK_off_diag_error = compare_to_identity(self.model.assemble_QK(0))
-            VO_scale, VO_diag_error, VO_off_diag_error = compare_to_identity(self.model.assemble_VO(0))
-            self.log("QK_scale", QK_scale, logger=True)
-            self.log("QK_diag_error", QK_diag_error, logger=True)
-            self.log("QK_off_diag_error", QK_off_diag_error, logger=True)
-            self.log("VO_scale", VO_scale, logger=True)
-            self.log("VO_diag_error", VO_diag_error, logger=True)
-            self.log("VO_off_diag_error", VO_off_diag_error, logger=True)
 
     def test_step(self, batch, batch_ix):
         loss = self.loss(batch)
@@ -75,13 +68,25 @@ class LitSequenceRegression(pl.LightningModule):
         }
 
 
+class PerfectTraining(LitSequenceRegression):
+    def on_train_epoch_end(self):
+        QK_scale, QK_diag_error, QK_off_diag_error = compare_to_identity(self.model.assemble_QK(0))
+        VO_scale, VO_diag_error, VO_off_diag_error = compare_to_identity(self.model.assemble_VO(0))
+        self.log("QK_scale", QK_scale, logger=True)
+        self.log("QK_diag_error", QK_diag_error, logger=True)
+        self.log("QK_off_diag_error", QK_off_diag_error, logger=True)
+        self.log("VO_scale", VO_scale, logger=True)
+        self.log("VO_diag_error", VO_diag_error, logger=True)
+        self.log("VO_off_diag_error", VO_off_diag_error, logger=True)
+
+
 def dataset(config):
     return torch.utils.data.DataLoader(
         FarthestPointSeparateDataset(
-            config.dim,
-            config.num_points,
-            config.num_queries,
-            config.double_points
+            dim=config.dim,
+            num_points=config.num_points,
+            num_queries=config.num_queries,
+            double_points=False
         ),
         batch_size=config.batch_size,
         num_workers=config.num_workers
