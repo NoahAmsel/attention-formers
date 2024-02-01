@@ -8,18 +8,6 @@ from models import SoftMultiheadAttention, HardMultiheadAttention
 from task import FarthestPointSeparateDataset
 
 
-def compare_to_identity(matrix):
-    dim = matrix.shape[0]
-    assert dim == matrix.shape[1]
-    # normalize to scale of I. l1 norm of diagonal should be dim to match that of I
-    scale = torch.norm(matrix.diagonal(), p=1) / dim
-    scaled_matrix = matrix / scale
-    max_diag_error = torch.norm(scaled_matrix.diagonal() - 1, p=torch.inf)
-    scaled_matrix.fill_diagonal_(0)
-    max_off_diag_error = torch.norm(scaled_matrix, p=torch.inf)
-    return scale, max_diag_error, max_off_diag_error
-
-
 class LitSequenceRegression(pl.LightningModule):
     def __init__(self, model, **config):
         super().__init__()
@@ -69,9 +57,21 @@ class LitSequenceRegression(pl.LightningModule):
 
 
 class PerfectTraining(LitSequenceRegression):
+    @staticmethod
+    def compare_to_identity(matrix):
+        dim = matrix.shape[0]
+        assert dim == matrix.shape[1]
+        # normalize to scale of I. l1 norm of diagonal should be dim to match that of I
+        scale = torch.norm(matrix.diagonal(), p=1) / dim
+        scaled_matrix = matrix / scale
+        max_diag_error = torch.norm(scaled_matrix.diagonal() - 1, p=torch.inf)
+        scaled_matrix.fill_diagonal_(0)
+        max_off_diag_error = torch.norm(scaled_matrix, p=torch.inf)
+        return scale, max_diag_error, max_off_diag_error
+
     def on_train_epoch_end(self):
-        QK_scale, QK_diag_error, QK_off_diag_error = compare_to_identity(self.model.assemble_QK(0))
-        VO_scale, VO_diag_error, VO_off_diag_error = compare_to_identity(self.model.assemble_VO(0))
+        QK_scale, QK_diag_error, QK_off_diag_error = self.compare_to_identity(self.model.assemble_QK(0))
+        VO_scale, VO_diag_error, VO_off_diag_error = self.compare_to_identity(self.model.assemble_VO(0))
         self.log("QK_scale", QK_scale, logger=True)
         self.log("QK_diag_error", QK_diag_error, logger=True)
         self.log("QK_off_diag_error", QK_off_diag_error, logger=True)
@@ -93,14 +93,15 @@ def dataset(config):
     )
 
 
-def train(config):
+def train(**config):
+    config = oc.create(config)
     # Update git hash with current commit
     repo = git.Repo(config.code_dir, search_parent_directories=True)
     config.git_hash = repo.head.object.hexsha
 
-    data = dataset(**config)
-    model = SoftMultiheadAttention(config.dim, config.rank, config.nheads)
-    lit_model = LitSequenceRegression(model, **config)
+    data = dataset(config)
+    model = SoftMultiheadAttention(dim=config.dim, rank=config.rank, nheads=config.nheads)
+    lit_model = PerfectTraining(model, **config)
 
     csv_logger = CSVLogger(
         save_dir=config.csv_log_dir,
@@ -132,19 +133,20 @@ def train(config):
     #     wandb_logger.experiment.unwatch(lit_model)
 
 
-def test(model, config):
+def test_model(model, config):
     data = dataset(config)
     lit_model = LitSequenceRegression(model, **config)
-    tester = pl.Trainer(limit_test_batches=config.num_batches, logger=False)
+    tester = pl.Trainer(limit_test_batches=config.num_test_batches, logger=False)
     tester.test(model=lit_model, dataloaders=data)
 
 
 if __name__ == "__main__":
-    train(oc.create(dict(
+    train(
         dim=100,
-        ntokens=100,
         rank=100,
         nheads=1,
+        num_points=100,
+        num_queries=5,
         batch_size=64,
         lr=1e-2,
         epochs=250,
@@ -156,4 +158,5 @@ if __name__ == "__main__":
         code_dir="/home/nia4240/attention-formers",
         csv_log_dir="/home/nia4240/attention-formers/csv_logs",
         wandb_log_parent_dir="/home/nia4240/attention-formers/wandb_logs",
-    )))
+    )
+    # Fire(train)

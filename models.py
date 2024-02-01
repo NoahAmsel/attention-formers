@@ -62,6 +62,10 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
 
     @classmethod
     def random_construction(cls, dim, rank, nheads, temperature=1, device=None, dtype=None):
+        """ Sets q = k
+        Sets the columns of q to be an orthonormal basis for a random subspace of dimension rank
+        Sets VO so to be identity, scaled so that the total function is an average over the heads
+        """
         model = cls(dim=dim, rank=rank, nheads=nheads, device=device, dtype=dtype)
         # TODO should really make temperature infinity but whatever
         lr = torch.eye(rank, dim)

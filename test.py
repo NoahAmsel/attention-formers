@@ -3,7 +3,7 @@ from omegaconf import OmegaConf as oc
 import torch
 
 from models import HardMultiheadAttention
-from train import test
+from train import test_model
 
 
 class ZeroModel(torch.nn.Module):
@@ -22,13 +22,13 @@ def test_zero_construction(**config):
     Loss should always be 1.
     """
     config = oc.create(config)
-    test(ZeroModel(), config)
+    test_model(ZeroModel(), config)
 
 
 def test_perfect_construction(**config):
     config = oc.create(config)
     model = HardMultiheadAttention.perfect_construction(dim=config.dim)
-    test(model, config)
+    test_model(model, config)
 
 
 def test_random_construction(**config):
@@ -36,7 +36,7 @@ def test_random_construction(**config):
     model = HardMultiheadAttention.random_construction(
         config.dim, config.rank, config.nheads
     )
-    test(model, config)
+    test_model(model, config)
 
 
 if __name__ == "__main__":
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         num_points=30,
         num_queries=5,
         batch_size=16,
-        num_batches=50,
+        num_test_batches=50,
         num_workers=4,
     )
     # Fire(test_random_construction)
