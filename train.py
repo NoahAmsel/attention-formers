@@ -5,7 +5,7 @@ from omegaconf import OmegaConf as oc
 import torch
 
 from models import SoftMultiheadAttention
-from task import NearestPointDataset
+from task import dataset
 
 
 class LitSequenceRegression(pl.LightningModule):
@@ -28,6 +28,9 @@ class LitSequenceRegression(pl.LightningModule):
         # MSE loss averages all the entry-wise errors
         # but we don't want to average over dimension of the vectors,
         # so mulitply by dim
+        if self.config.scale_batch:
+            scale = (labels * labels_hat).sum() / (labels_hat ** 2).sum()
+            labels_hat *= scale
         return torch.nn.functional.mse_loss(labels_hat, labels) * dim
 
     def training_step(self, batch, batch_idx):
@@ -78,18 +81,6 @@ class PerfectTraining(LitSequenceRegression):
         self.log("VO_scale", VO_scale, logger=True)
         self.log("VO_diag_error", VO_diag_error, logger=True)
         self.log("VO_off_diag_error", VO_off_diag_error, logger=True)
-
-
-def dataset(config):
-    return torch.utils.data.DataLoader(
-        NearestPointDataset(
-            dim=config.dim,
-            num_points=config.num_points,
-            num_queries=config.num_queries,
-        ),
-        batch_size=config.batch_size,
-        num_workers=config.num_workers
-    )
 
 
 def train(**config):

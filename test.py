@@ -39,15 +39,25 @@ def test_random_construction(**config):
     test_model(model, config)
 
 
+def test_spaced_construction(**config):
+    config = oc.create(config)
+    assert config.dim == 2
+    assert config.rank == 1
+    model = HardMultiheadAttention.spaced_out_construction(config.nheads)
+    test_model(model, config)
+
+
 if __name__ == "__main__":
-    test_random_construction(
-        dim=20,
+    test_spaced_construction(
+        dim=2,
         rank=1,
-        nheads=123,
-        num_points=30,
-        num_queries=5,
-        batch_size=16,
-        num_test_batches=50,
+        nheads=2**16,
+        num_points=2,
+        num_queries=4,
+        task="ortho",
+        scale_batch=True,
+        batch_size=128,
+        num_test_batches=256,
         num_workers=4,
     )
     # Fire(test_random_construction)

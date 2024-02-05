@@ -76,6 +76,18 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
             model.K.data[head,:,:] = rotated_lr
             model.VO.data[head,:,:] = torch.eye(dim, device=device, dtype=dtype) / nheads
         return model
+    
+    @classmethod
+    def spaced_out_construction(cls, nheads, temperature=1, device=None, dtype=None):
+        model = cls(dim=2, rank=1, nheads=nheads, device=device, dtype=dtype)
+        angles = torch.linspace(0, torch.pi * (1 - 1/nheads), nheads, device=device, dtype=dtype)
+        model.Q.data[:, 0, 0] = torch.cos(angles)
+        model.Q.data[:, 0, 1] = torch.sin(angles)
+        model.K.data = model.Q.data
+        model.Q.data *= temperature
+        for head in range(nheads):
+            model.VO.data[head,:,:] = torch.eye(2, device=device, dtype=dtype) / nheads
+        return model
 
 
 class SoftMultiheadAttention(AbstractMultiheadAttention):

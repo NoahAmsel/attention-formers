@@ -52,3 +52,16 @@ class NearestPointDatasetOrthogonal(NearestPointDataset):
         assert self.num_points <= self.dim
         rotation, _ = torch.linalg.qr(torch.randn((self.dim, self.dim), generator=rng, device=rng.device))
         return rotation[:, :self.num_points]
+
+
+def dataset(config):
+    name2task = {"unif": NearestPointDataset, "ortho": NearestPointDatasetOrthogonal, "doubled": NearestPointDatasetDoubled}
+    return torch.utils.data.DataLoader(
+        name2task[config.task](
+            dim=config.dim,
+            num_points=config.num_points,
+            num_queries=config.num_queries,
+        ),
+        batch_size=config.batch_size,
+        num_workers=config.num_workers
+    )
