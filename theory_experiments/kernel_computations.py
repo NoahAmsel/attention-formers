@@ -116,9 +116,9 @@ def estimate_head_vs_random_head_2D(theta1, theta2, ntrials=100_000):
 
 
 def head_vs_random_head_2D(theta1, theta2):
-    a = angle_between(theta1 - theta2)
-    b = angle_between(theta1 + theta2)
-    return (2/3) + (a**3 + b**3)/(3 * np.pi ** 3) - (a**2 + b**2)/(2 * np.pi ** 2)
+    a = angle_between(theta1 - theta2) / np.pi
+    b = angle_between(theta1 + theta2) / np.pi
+    return (4 + 2*(a**3 + b**3) - 3*(a**2 + b**2)) / 6
 
 
 def head_vs_target_2D(theta):
