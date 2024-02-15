@@ -3,10 +3,16 @@ import numpy as np
 from tqdm import tqdm
 
 
-def unif(d, n):
-    X = np.random.randn(d, n)
-    X /= np.linalg.norm(X, axis=0)
-    return X
+def samples_from_sphere(dim, num_points):
+    X = np.random.randn(dim, num_points)
+    # normalize each row
+    return X / np.linalg.norm(X, axis=0)
+
+
+def angle_between(x):
+    """Takes an angle and normalizes it to the range [0, pi]
+    """
+    return np.pi - np.abs(np.remainder(x, 2*np.pi) - np.pi)
 
 
 def qk(dim, theta):
@@ -17,45 +23,134 @@ def qk(dim, theta):
     return q, k
 
 
-def p1p2(dim, theta, ntrials=100_000):
+def random_qk(dim, theta):
+    # TODO: vectorize this so it can quickly generate many samples of (q,k)
+    if theta == 0:
+        # for speed, this is a seperate case
+        q = samples_from_sphere(dim, 1).squeeze()
+        return q, q
+    else:
+        r = samples_from_sphere(dim, 2)
+        q = r[:, 0]
+        e2 = r[:, 1] - np.inner(q, r[:, 1]) * q
+        k = np.cos(theta) * q + np.sin(theta) * e2
+        return q, k
+
+
+def estimate_head_vs_target(dim, theta, ntrials=100_000):
+    """For a head with angle(q,k) = theta,
+    estimate the probability it equals the target
+    over uniform y and uniform and perpendicular x1, x2
+    which is Pr_{x,y}[<x,y><x,k><q,y> > 0]
+    """
     q, k = qk(dim, theta)
-    count1 = 0
-    count2 = 0
+    count = 0
     for _ in tqdm(range(ntrials)):
-        r = np.random.randn(dim, 3)
-        x, y, z = r[:, 0], r[:, 1], r[:, 2]
-        common = np.inner(x, k) * np.inner(q, y)
-        if common * np.inner(x, z) * np.inner(z, y) > 0:
-            count1 += 1
-        if common * np.inner(x, y) > 0:
-            count2 += 1
-    return count1 / ntrials, count2 / ntrials
+        r = np.random.randn(dim, 2)  # norm doesn't matter
+        x, y = r[:, 0], r[:, 1]
+        if np.inner(x, y) * np.inner(x, k) * np.inner(q, y) > 0:
+            count += 1
+    return count / ntrials
+
+
+def estimate_head_vs_head(q, k, q2, k2, ntrials=100_000, tqdm=False):
+    """For heads (q,k) and (q2, k2),
+    estimate the probability they equal each other
+    over uniform y and uniform and perpendicular x1, x2
+    which is Pr_{x,y}[<x,k><q,y><x,k'><q',y> > 0]
+    """
+    assert q.shape == k.shape == q2.shape == k2.shape
+    dim = len(q)
+    count = 0
+    rg = range(ntrials)
+    if tqdm:
+        rg = tqdm(rg)
+    for _ in rg:
+        r = np.random.randn(dim, 2)  # norm doesn't matter
+        x, y = r[:, 0], r[:, 1]
+        if np.inner(x, k) * np.inner(q, y) * np.inner(x, k2) * np.inner(q2, y) > 0:
+            count += 1
+    return count / ntrials
+
+
+def alt_estimate_head_vs_random_head(dim, theta1, theta2, ntrials=100_000):
+    """For heads (q,k) and (q2, k2) drawn uniformly at random
+    conditioned on angle(q,k) = theta1, angle(q2,k2) = theta2
+    estimates the probability that thtey equal each other
+    """
+    q, k = qk(dim, theta1)
+    count = 0
+    for _ in tqdm(range(ntrials)):
+        q2, k2 = random_qk(dim, theta2)
+        count += estimate_head_vs_head(q, k, q2, k2, ntrials=1)
+    return count / ntrials
 
 
 def clip_asin(x):
     return np.arcsin(np.clip(x, -1, 1))
 
 
-def exp_kernel(dim, theta, ntrials=100_000):
-    q, k = qk(dim, theta)
-    Z = unif(dim, ntrials)
-    return np.inner(clip_asin(Z.T @ q), clip_asin(Z.T @ k) / ntrials)
+def head_vs_head(q, k, q2, k2):
+    qq2 = np.inner(q, q2) / (np.linalg.norm(q) * np.linalg.norm(q2))
+    kk2 = np.inner(k, k2) / (np.linalg.norm(k) * np.linalg.norm(k2))
+    return (1/2) + (2 / np.pi**2) * clip_asin(qq2) * clip_asin(kk2)
 
 
-# # Experiment 1
-# thetas = np.linspace(0, np.pi, 20)
-# results = np.array([p1p2(20, theta, ntrials=int(1e6)) for theta in thetas])
-
-# plt.plot(thetas, results)
-# plt.plot(thetas, results - 0.5)
+def estimate_head_vs_random_head(dim, theta1, theta2, ntrials=100_000):
+    q, k = qk(dim, theta1)
+    return sum(head_vs_head(q, k, *random_qk(dim, theta2)) for _ in tqdm(range(ntrials))) / ntrials
 
 
-# Experiment 2
-thetas = np.linspace(0, np.pi/2, 25, endpoint=False)
-results = np.array([exp_kernel(2, theta, ntrials=int(1e7)) for theta in tqdm(thetas)])
-plt.plot(thetas, results / np.cos(thetas))
-plt.plot(thetas, results/results[0], thetas, np.cos(thetas))
+def estimate_head_vs_random_head_2D(theta1, theta2, ntrials=100_000):
+    """Approximates E[arcsin(<q,q'>) * arcsin(<k,k'>)]
+    where angle between q and k is theta1
+    q' is drawn uniformly, and angle between q' and k' is theta2
+    """
+    def result(k_prime):
+        return np.inner(
+            np.pi/2 - angle_between(q_prime),
+            np.pi/2 - angle_between(k_prime - theta1) / ntrials
+        )
+    q_prime = np.linspace(0, 2*np.pi, ntrials, endpoint=False)
+    return (1/2) + (2 / np.pi**2) * (result(q_prime + theta2) + result(q_prime - theta2)) / 2
 
-results_big = np.array([exp_kernel(2, theta, ntrials=int(1e9)) for theta in tqdm(thetas)])
-plt.plot(thetas, results_big / np.cos(thetas))
-plt.plot(thetas, results_big/results_big[0], thetas, np.cos(thetas))
+
+def head_vs_random_head_2D(theta1, theta2):
+    a = angle_between(theta1 - theta2)
+    b = angle_between(theta1 + theta2)
+    return (2/3) + (a**3 + b**3)/(3 * np.pi ** 3) - (a**2 + b**2)/(2 * np.pi ** 2)
+
+
+def head_vs_target_2D(theta):
+    # this simplifies significantly when theta < pi/2
+    # it's a differentiable, piecewise quadratic with a knot at pi/2
+    fixed_theta = np.pi/2 - np.abs(np.pi/2 - theta)
+    return (1/2) + np.sign(np.pi/2 - theta) * (0.25 - (fixed_theta/np.pi)**2)
+
+
+if __name__ == "__main__":
+    # Experiment 1: head vs target in 2D
+    thetas = np.linspace(0, np.pi, 50, endpoint=True)
+    estimate = [estimate_head_vs_target(2, theta) for theta in thetas]
+    exact = head_vs_target_2D(thetas)
+    plt.plot(thetas, exact, thetas, estimate)
+    plt.plot(exact, estimate)
+
+
+if __name__ == "__main__":
+    # Experiment 2: head vs head 4D
+    q, k = qk(4, np.pi/4)
+    theta2s = np.linspace(0, np.pi, 20, endpoint=True)
+    qk2s = [random_qk(4, theta2) for theta2 in theta2s for _ in range(3)]
+    estimates = np.array([estimate_head_vs_head(q, k, q2, k2, ntrials=100_000) for (q2, k2) in tqdm(qk2s)])
+    exact = np.array([head_vs_head(q, k, q2, k2) for (q2, k2) in qk2s])
+    plt.plot((estimates - exact)/exact)
+
+
+if __name__ == "__main__":
+    # Experiment 3: head vs head 2D
+    thetas = np.linspace(0, np.pi, 50, endpoint=True)
+    estimates = np.array([[estimate_head_vs_random_head_2D(theta1, theta2) for theta2 in thetas] for theta1 in thetas])
+    exact = np.array([[head_vs_random_head_2D(theta1, theta2) for theta2 in thetas] for theta1 in thetas])
+    plt.plot(thetas, estimates[:, [0, 15, 30]], thetas, exact[:, [0, 15, 30]])
+    np.max(np.abs(estimates - exact)/exact)

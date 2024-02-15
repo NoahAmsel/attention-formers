@@ -164,31 +164,32 @@ def train(model, steps, lr):
             model.renormalize()
 
 
-# # Quick and dirty experiments
-# print([Rank1(dim=2, H=2**i, clipping=1).mse().data for i in range(11)])
-# print([Rank1(dim=2, H=2**i, clipping=1).equalize_qk().mse().data for i in range(11)])
+if __name__ == "__main__":
+    # # Quick and dirty experiments
+    # print([Rank1(dim=2, H=2**i, clipping=1).mse().data for i in range(11)])
+    # print([Rank1(dim=2, H=2**i, clipping=1).equalize_qk().mse().data for i in range(11)])
 
 
-# model = Rank1(dim=2, H=2**0, clipping=.9999)
-model = Rank1Angle(H=40)
-# model = model.cuda()
-model.equalize_qk()
-print(f"Before: {model.mse():.5f}")
-train(model, steps=10_000, lr=1)
-train(model, steps=10_000, lr=.1)
-train(model, steps=10_000, lr=.01)
-train(model, steps=10_000, lr=.001)
-model.snap(2 * model.H())  # is this right? maybe just H is enough?
-print(f"After: {model.mse():.5f}")
-print(f"qs\n{(model.qs * 180 / torch.pi).data}")
-print(f"ks\n{(model.ks * 180 / torch.pi).data}")
-print(f"qk angles:\n{((180/torch.pi) * torch.arccos(model.unscaled_edge_vector()).data).round()}")
-# print(f"qq angles:\n{((180/torch.pi) * angle_between(model.qs.reshape((-1, 1)) - model.qs.reshape((1, -1)))).round().data}")
-# print(f"kk angles:\n{((180/torch.pi) * angle_between(model.ks.reshape((-1, 1)) - model.ks.reshape((1, -1)))).round().data}")
+    # model = Rank1(dim=2, H=2**0, clipping=.9999)
+    model = Rank1Angle(H=40)
+    # model = model.cuda()
+    model.equalize_qk()
+    print(f"Before: {model.mse():.5f}")
+    train(model, steps=10_000, lr=1)
+    train(model, steps=10_000, lr=.1)
+    train(model, steps=10_000, lr=.01)
+    train(model, steps=10_000, lr=.001)
+    model.snap(2 * model.H())  # is this right? maybe just H is enough?
+    print(f"After: {model.mse():.5f}")
+    print(f"qs\n{(model.qs * 180 / torch.pi).data}")
+    print(f"ks\n{(model.ks * 180 / torch.pi).data}")
+    print(f"qk angles:\n{((180/torch.pi) * torch.arccos(model.unscaled_edge_vector()).data).round()}")
+    # print(f"qq angles:\n{((180/torch.pi) * angle_between(model.qs.reshape((-1, 1)) - model.qs.reshape((1, -1)))).round().data}")
+    # print(f"kk angles:\n{((180/torch.pi) * angle_between(model.ks.reshape((-1, 1)) - model.ks.reshape((1, -1)))).round().data}")
 
-## TODO
-# i was trying rerunning stuff in double precision. also remember to switch between least squares and linear solver
-# also try playing with equalize_qk. how do we get it to initialize them to be the same, and how do we get it to guarantee that they're the same
-# so far for H=4 it seems that equalizing gets you to a better minimum then you tend to get otherwise. there are local minima where q,k are antiparallel but they aren't as good
+    ## TODO
+    # i was trying rerunning stuff in double precision. also remember to switch between least squares and linear solver
+    # also try playing with equalize_qk. how do we get it to initialize them to be the same, and how do we get it to guarantee that they're the same
+    # so far for H=4 it seems that equalizing gets you to a better minimum then you tend to get otherwise. there are local minima where q,k are antiparallel but they aren't as good
 
-plot_angles(model.qs.data.detach())
+    plot_angles(model.qs.data.detach())
