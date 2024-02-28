@@ -127,7 +127,7 @@ def test_model(model, config):
     data = dataset(config)
     lit_model = LitSequenceRegression(model, **config)
     tester = pl.Trainer(limit_test_batches=config.num_test_batches, logger=False)
-    tester.test(model=lit_model, dataloaders=data)
+    return tester.test(model=lit_model, dataloaders=data)
 
 
 if __name__ == "__main__":

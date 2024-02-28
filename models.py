@@ -3,6 +3,8 @@ from math import sqrt
 
 import torch
 
+from task import samples_from_sphere, create_rng
+
 
 class AbstractMultiheadAttention(torch.nn.Module, ABC):
     def __init__(self, dim, rank, nheads, device=None, dtype=None):
@@ -55,9 +57,9 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
     @classmethod
     def perfect_construction(cls, dim, temperature=1, device=None, dtype=None):
         model = cls(dim=dim, rank=dim, nheads=1, device=device, dtype=dtype)
-        model.Q.data[0,:,:] = temperature * torch.eye(model.dim, device=device, dtype=dtype)
-        model.K.data[0,:,:] = torch.eye(model.dim, device=device, dtype=dtype)
-        model.VO.data[0,:,:] = torch.eye(model.dim, device=device, dtype=dtype)
+        model.Q.data[0, :, :] = temperature * torch.eye(model.dim, device=device, dtype=dtype)
+        model.K.data[0, :, :] = torch.eye(model.dim, device=device, dtype=dtype)
+        model.VO.data[0, :, :] = torch.eye(model.dim, device=device, dtype=dtype)
         return model
 
     @classmethod
@@ -72,9 +74,9 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
         for head in range(nheads):
             rotation, _ = torch.linalg.qr(torch.randn((dim, dim)))
             rotated_lr = lr @ rotation
-            model.Q.data[head,:,:] = temperature * rotated_lr
-            model.K.data[head,:,:] = rotated_lr
-            model.VO.data[head,:,:] = torch.eye(dim, device=device, dtype=dtype) / nheads
+            model.Q.data[head, :, :] = temperature * rotated_lr
+            model.K.data[head, :, :] = rotated_lr
+            model.VO.data[head, :, :] = torch.eye(dim, device=device, dtype=dtype) / nheads
         return model
     
     @classmethod
@@ -86,7 +88,7 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
         model.K.data = model.Q.data
         model.Q.data *= temperature
         for head in range(nheads):
-            model.VO.data[head,:,:] = torch.eye(2, device=device, dtype=dtype) / nheads
+            model.VO.data[head, :, :] = torch.eye(2, device=device, dtype=dtype) / nheads
         return model
 
 
@@ -109,3 +111,29 @@ class HardMultiheadAttention(AbstractMultiheadAttention):
         # attn_matrix is batch_size, num queries, num heads, num points
         # X is batch_size, dim, num points
         return torch.einsum("bqhk,bdk,hde->beq", attn_matrix, X, self.VO)
+
+
+class OptimallyWeightedRandom(HardMultiheadAttention):
+    def __init__(self, nheads, seed=None, device=None, dtype=None):
+        super().__init__(dim=2, rank=1, nheads=nheads, device=device, dtype=dtype)
+        rng = create_rng(seed, device)
+        self.Q.data[:, 0, :] = samples_from_sphere(2, nheads, rng).T
+        self.K.data[:, 0, :] = samples_from_sphere(2, nheads, rng).T
+
+        C = self.head_vs_head(self.Q[:, 0, :].T, self.K[:, 0, :].T)
+        b = self.head_vs_target_2D(self.Q[:, 0, :].T, self.K[:, 0, :].T)
+        a = torch.linalg.solve(C, b)
+        self.VO.data = torch.eye(2, device=device, dtype=dtype).expand(nheads, 2, 2) * a.reshape(-1, 1, 1)
+
+    @staticmethod
+    def head_vs_head(Qs, Ks):
+        def clip_asin(x):
+            return torch.arcsin(torch.clip(x, -1, 1))
+
+        return (1/2) + (2 / torch.pi**2) * clip_asin(Qs.T @ Qs) * clip_asin(Ks.T @ Ks)
+
+    @staticmethod
+    def head_vs_target_2D(Qs, Ks):
+        angles = torch.arccos(torch.clip((Qs * Ks).sum(dim=0), -1, 1))
+        fixed_angles = torch.pi/2 - torch.abs(torch.pi/2 - angles)
+        return (1/2) + torch.sign(torch.pi/2 - angles) * (0.25 - (fixed_angles/torch.pi)**2)

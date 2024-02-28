@@ -9,6 +9,10 @@ def samples_from_sphere(dim, num_points):
     return X / np.linalg.norm(X, axis=0)
 
 
+def slope(X, Y):
+    return ((X*Y).mean() - X.mean()*Y.mean()) / ((X**2).mean() - (X.mean())**2)
+
+
 def angle_between(x):
     """Takes an angle and normalizes it to the range [0, pi]
     """
@@ -101,6 +105,11 @@ def estimate_head_vs_random_head(dim, theta1, theta2, ntrials=100_000):
     return sum(head_vs_head(q, k, *random_qk(dim, theta2)) for _ in tqdm(range(ntrials))) / ntrials
 
 
+##############
+# 2D
+##############
+
+
 def estimate_head_vs_random_head_2D(theta1, theta2, ntrials=100_000):
     """Approximates E[arcsin(<q,q'>) * arcsin(<k,k'>)]
     where angle between q and k is theta1
@@ -115,6 +124,12 @@ def estimate_head_vs_random_head_2D(theta1, theta2, ntrials=100_000):
     return (1/2) + (2 / np.pi**2) * (result(q_prime + theta2) + result(q_prime - theta2)) / 2
 
 
+def head_vs_head_2D(q, k, q2, k2):
+    q_angle = angle_between(q - q2)
+    k_angle = angle_between(k - k2)
+    return (1/2) + (2 / np.pi**2) * (np.pi/2 - q_angle) * (np.pi/2 - k_angle)
+
+
 def head_vs_random_head_2D(theta1, theta2):
     a = angle_between(theta1 - theta2) / np.pi
     b = angle_between(theta1 + theta2) / np.pi
@@ -126,6 +141,23 @@ def head_vs_target_2D(theta):
     # it's a differentiable, piecewise quadratic with a knot at pi/2
     fixed_theta = np.pi/2 - np.abs(np.pi/2 - theta)
     return (1/2) + np.sign(np.pi/2 - theta) * (0.25 - (fixed_theta/np.pi)**2)
+
+
+def MSE_weighted_random_2D(H):
+    q_angles = 2*np.pi * np.random.rand(H)
+    k_angles = 2*np.pi * np.random.rand(H)
+    C = (1 / 2) + (2 / np.pi**2) * (
+        np.pi / 2 - angle_between(q_angles.reshape((-1, 1)) - q_angles.reshape((1, -1)))
+    ) * (
+        np.pi / 2 - angle_between(k_angles.reshape((-1, 1)) - k_angles.reshape((1, -1)))
+    )
+    b = head_vs_target_2D(angle_between(q_angles - k_angles))
+    return 1 - np.inner(b, np.linalg.solve(C, b))
+
+
+##############
+# Experiments
+##############
 
 
 if __name__ == "__main__":
@@ -154,3 +186,13 @@ if __name__ == "__main__":
     exact = np.array([[head_vs_random_head_2D(theta1, theta2) for theta2 in thetas] for theta1 in thetas])
     plt.plot(thetas, estimates[:, [0, 15, 30]], thetas, exact[:, [0, 15, 30]])
     np.max(np.abs(estimates - exact)/exact)
+
+
+if __name__ == "__main__":
+    Hs = np.array([2**i for i in range(15)])
+    errors = np.array([MSE_weighted_random_2D(H) for H in Hs])
+    plt.loglog(Hs, errors)
+    plt.xlabel("H")
+    plt.ylabel("1 - b^TC^{-1}b")
+
+    slope(np.log(Hs), np.log(errors))

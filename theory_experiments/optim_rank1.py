@@ -26,6 +26,7 @@ def plot_angles(thetas):
         ax.plot([theta + torch.pi, theta + torch.pi], [0, 1], c='blue')
     return fig, ax
 
+
 def plot_heads_3d(qs):
     ax = plt.figure().add_subplot(projection='3d')
     for h in range(qs.shape[1]):
@@ -90,7 +91,9 @@ class Rank1(AbstractRank1):
         )
 
     def unscaled_edge_vector(self):
-        return (self.qs * self.ks).sum(dim=0)
+        assert False, "unknown"
+        # this is wrong
+        # return (self.qs * self.ks).sum(dim=0)
 
 
 class Rank1Angle(AbstractRank1):
@@ -141,8 +144,16 @@ class Rank1Angle(AbstractRank1):
             * self.arcsin_cos(self.ks.reshape((-1, 1)) - self.ks.reshape((1, -1)))
         )
 
-    def unscaled_edge_vector(self):
-        return torch.cos(self.qs - self.ks)
+    def edge_vector(self):
+        theta = angle_between(self.qs - self.ks)
+        fixed_theta = torch.pi/2 - torch.abs(torch.pi/2 - theta)
+        return torch.sign(torch.pi/2 - theta) * (0.25 - (fixed_theta/torch.pi)**2)
+
+    def mse(self):
+        b = 0.5 + self.edge_vector()
+        C = 0.5 + self.kernel()
+        return 1 - torch.inner(b, torch.linalg.solve(C, b))
+        # return 1 - torch.inner(b, torch.linalg.lstsq(C, b).solution)
 
 
 def train(model, steps, lr):
@@ -187,7 +198,7 @@ if __name__ == "__main__":
     # print(f"qq angles:\n{((180/torch.pi) * angle_between(model.qs.reshape((-1, 1)) - model.qs.reshape((1, -1)))).round().data}")
     # print(f"kk angles:\n{((180/torch.pi) * angle_between(model.ks.reshape((-1, 1)) - model.ks.reshape((1, -1)))).round().data}")
 
-    ## TODO
+    # TODO
     # i was trying rerunning stuff in double precision. also remember to switch between least squares and linear solver
     # also try playing with equalize_qk. how do we get it to initialize them to be the same, and how do we get it to guarantee that they're the same
     # so far for H=4 it seems that equalizing gets you to a better minimum then you tend to get otherwise. there are local minima where q,k are antiparallel but they aren't as good
