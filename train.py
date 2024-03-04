@@ -1,5 +1,6 @@
 import git
 import lightning as pl
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger, WandbLogger
 from omegaconf import OmegaConf as oc
 import torch
@@ -91,7 +92,8 @@ def train(**config):
 
     data = dataset(config)
     model = SoftMultiheadAttention(dim=config.dim, rank=config.rank, nheads=config.nheads)
-    lit_model = PerfectTraining(model, **config)
+    module = PerfectTraining if config.log_matrix_metrics else LitSequenceRegression
+    lit_model = module(model, **config)
 
     csv_logger = CSVLogger(
         save_dir=config.csv_log_dir,
@@ -114,7 +116,10 @@ def train(**config):
         limit_train_batches=100,
         max_epochs=config.epochs,
         logger=logger,
-        callbacks=[pl.pytorch.callbacks.LearningRateMonitor(logging_interval='epoch')]
+        callbacks=[
+            LearningRateMonitor(logging_interval='epoch'),
+            ModelCheckpoint(save_top_k=1, save_last=True, monitor="train_loss", mode="min")
+        ]
     )
     # if not config.skip_wandb:
     #     wandb_logger.watch(lit_model, log="all", log_freq=10)
@@ -132,16 +137,19 @@ def test_model(model, config):
 
 if __name__ == "__main__":
     train(
-        dim=100,
-        rank=100,
-        nheads=1,
-        num_points=100,
-        num_queries=5,
-        batch_size=64,
-        lr=1e-2,
-        epochs=250,
+        dim=2,
+        rank=1,
+        nheads=int(2**14),
+        num_points=2,
+        num_queries=4,
+        task="ortho",
+        scale_batch=False,
+        batch_size=2024,
+        lr=5e-3,
+        epochs=400,
+        log_matrix_metrics=False,
         num_workers=4,
-        experiment_name="default_experiment",
+        experiment_name="dim2_maxheads",
         experiment_version=None,
         skip_wandb=True,
         debug=True,
