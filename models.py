@@ -3,7 +3,7 @@ from math import sqrt
 
 import torch
 
-from task import samples_from_sphere, create_rng
+from task import samples_from_sphere, create_rng, NearestPointDataset
 
 
 class AbstractMultiheadAttention(torch.nn.Module, ABC):
@@ -137,3 +137,38 @@ class OptimallyWeightedRandom(HardMultiheadAttention):
         angles = torch.arccos(torch.clip((Qs * Ks).sum(dim=0), -1, 1))
         fixed_angles = torch.pi/2 - torch.abs(torch.pi/2 - angles)
         return (1/2) + torch.sign(torch.pi/2 - angles) * (0.25 - (fixed_angles/torch.pi)**2)
+
+
+class CheatingWeights(AbstractMultiheadAttention):
+    def __init__(self, dim, nheads, seed=None, device=None, dtype=None):
+        super().__init__(dim=dim, rank=1, nheads=nheads, device=device, dtype=dtype)
+        rng = create_rng(seed, device)
+        self.Q.data[:, 0, :] = samples_from_sphere(dim, nheads, rng).T
+        self.K.data[:, 0, :] = samples_from_sphere(dim, nheads, rng).T
+
+        C = OptimallyWeightedRandom.head_vs_head(self.Q[:, 0, :].T, self.K[:, 0, :].T)
+        del self.VO
+
+    def forward(self, X, Y):
+        # inside is batch_size, num queries, num heads, num keys
+        # attended_to is batch_size, num queries, num heads
+        attended_to = torch.argmax(self.inside_heads(X, Y), dim=3)
+        # TODO: this is very wasteful. there should be a better way
+        attn_matrix = torch.nn.functional.one_hot(attended_to, num_classes=X.shape[2]).float()
+        # attn_matrix is batch_size, num queries, num heads, num points
+        # X is batch_size, dim, num points
+        features = torch.einsum("bqhk,bdk->bdqh", attn_matrix, X)
+        # here's the cheating
+        labels = self.label_batch(X, Y)
+        # labels has dimensions: batch size, dim, num queries
+        a = torch.linalg.lstsq(torch.flatten(features, end_dim=2), torch.flatten(labels)).solution
+        return torch.einsum("bdqh,h->bdq", features, a)
+
+    @staticmethod
+    def label_batch(X, Y):
+        # X is batch_size, dim, num points
+        # Y is batch_size, dim, num queries
+        labels = torch.empty(Y.shape)
+        for ix in range(labels.shape[0]):
+            labels[ix, :, :] = NearestPointDataset.label(X[ix, :, :], Y[ix, :, :])
+        return labels

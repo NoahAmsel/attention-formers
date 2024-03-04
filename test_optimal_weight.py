@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from models import OptimallyWeightedRandom
+from models import OptimallyWeightedRandom, CheatingWeights
 from task import dataset
 from train import test_model
 
@@ -42,19 +42,19 @@ if __name__ == "__main__":
     config = oc.create(dict(
         dim=2,
         num_points=2,
-        num_queries=4,
+        num_queries=1,
         task="ortho",
         scale_batch=False,
         batch_size=64,
-        num_test_batches=128,
+        num_test_batches=256,
         num_workers=1,
     ))
     Hs = torch.tensor([2**i for i in range(15)])
     results = []
-    for seed in range(10):
+    for seed in range(5):
         print(f"epoch {seed}")
         for H in Hs:
-            model = OptimallyWeightedRandom(H, seed=int(2e7 + seed))
+            model = CheatingWeights(config.dim, H, seed=int(2e7 + seed))
             # since dataset is an iterable, must recreate it each inner
             # iteration to reset it
             data = dataset(oc.merge(config, {"seed": int(1e7+seed)}))
@@ -72,3 +72,9 @@ if __name__ == "__main__":
     plt.title("Measured MSE on q,k~unif, a=C^{-1}b\ndim=2\nslope=-0.46")
     plt.xlabel("H")
     plt.ylabel("MSE")
+
+    # import seaborn as sns
+    # df["1/MSE"] = 1/df['Squared Error']
+    # p = sns.lineplot(df, x='H', y='1/MSE')
+    # p.set(xscale='log')
+    # p.set(yscale='log')
