@@ -159,16 +159,16 @@ class CheatingWeights(AbstractMultiheadAttention):
         # X is batch_size, dim, num points
         features = torch.einsum("bqhk,bdk->bdqh", attn_matrix, X)
         # here's the cheating
-        labels = self.label_batch(X, Y)
+        labels = self.label_batch(X, Y, X.device)
         # labels has dimensions: batch size, dim, num queries
         a = torch.linalg.lstsq(torch.flatten(features, end_dim=2), torch.flatten(labels)).solution
         return torch.einsum("bdqh,h->bdq", features, a)
 
     @staticmethod
-    def label_batch(X, Y):
+    def label_batch(X, Y, device):
         # X is batch_size, dim, num points
         # Y is batch_size, dim, num queries
-        labels = torch.empty(Y.shape)
+        labels = torch.empty(Y.shape, device=device)
         for ix in range(labels.shape[0]):
             labels[ix, :, :] = NearestPointDataset.label(X[ix, :, :], Y[ix, :, :])
         return labels

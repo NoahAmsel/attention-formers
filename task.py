@@ -58,14 +58,15 @@ class NearestPointDatasetOrthogonal(NearestPointDataset):
         return rotation[:, :self.num_points]
 
 
-def dataset(config):
+def dataset(config, device=None):
     name2task = {"unif": NearestPointDataset, "ortho": NearestPointDatasetOrthogonal, "doubled": NearestPointDatasetDoubled}
     return torch.utils.data.DataLoader(
         name2task[config.task](
             dim=config.dim,
             num_points=config.num_points,
             num_queries=config.num_queries,
-            seed=config.get("seed", None)
+            seed=config.get("seed", None),
+            device=device
         ),
         batch_size=config.batch_size,
         num_workers=config.num_workers
