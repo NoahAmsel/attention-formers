@@ -67,6 +67,27 @@ class GegenbauerInverseTransform(Gegenbauer):
         return sum(coeff * gegfun(deg)(x) for deg, coeff in enumerate(self.coeffs))
 
 
+class HeadVsTarget(GegenbauerInverseTransform):
+    def __init__(self, dim, nterms):
+        sign = GegenbauerTransform(dim, np.sign, 'odd')
+        def features(x): return (np.sqrt(2)/np.pi) * np.arcsin(x)
+        feature_expansion = GegenbauerTransform(dim, features, 'odd')
+        super().__init__(
+            dim,
+            [
+                # correct for the fact that Joan assumes Gegenbauer polynomials are normalized
+                # to have the value 1 at 1, but scipy's gegenbauer polynomials are not 
+                sign.coeff(deg) * feature_expansion.coeff(deg) / sign.geg(deg)(1)
+                for deg in range(nterms)
+            ],
+            use_normalized_geg=False
+        )
+
+    def __call__(self, theta):
+        x = np.cos(theta)
+        return (1/2) + (1/np.sqrt(2)) * super().__call__(x)
+
+
 if __name__ == "__main__":
     dim = 20
     G = GegenbauerTransform(dim, np.sign, 'odd')

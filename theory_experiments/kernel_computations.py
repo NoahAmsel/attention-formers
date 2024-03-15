@@ -4,7 +4,7 @@ from tqdm import tqdm
 import scipy.linalg
 # from sklearn.isotonic import IsotonicRegression
 
-from verify_joan import GegenbauerTransform, GegenbauerInverseTransform
+from verify_joan import HeadVsTarget
 
 
 def samples_from_sphere(dim, num_points):
@@ -122,27 +122,6 @@ class HeadVsTargetMC:
     def __call__(self, theta):
         fixed_theta = np.pi/2 - np.abs(np.pi/2 - theta)
         return 0.5 + np.sign(np.pi/2 - theta) * (np.clip(self.iso_reg(fixed_theta), 0.5, 0.75) - 0.5)
-
-
-class HeadVsTarget(GegenbauerInverseTransform):
-    def __init__(self, dim, nterms):
-        sign = GegenbauerTransform(dim, np.sign, 'odd')
-        def features(x): return (np.sqrt(2)/np.pi) * np.arcsin(x)
-        feature_expansion = GegenbauerTransform(dim, features, 'odd')
-        super().__init__(
-            dim,
-            [
-                # correct for the fact that Joan assumes Gegenbauer polynomials are normalized
-                # to have the value 1 at 1, but scipy's gegenbauer polynomials are not 
-                sign.coeff(deg) * feature_expansion.coeff(deg) / sign.geg(deg)(1)
-                for deg in range(nterms)
-            ],
-            use_normalized_geg=False
-        )
-
-    def __call__(self, theta):
-        x = np.cos(theta)
-        return (1/2) + (1/np.sqrt(2)) * super().__call__(x)
 
 
 def MSE_weighted_random(dim, H, b_fun):
