@@ -20,26 +20,28 @@ if __name__ == "__main__":
         # I set this to avoid memory overflow when num heads > 2^15,
         # but it makes inefficient use of GPU. 
         # TODO: dynamically adjust batch size to fit model size
-        batch_size=64,
-        num_test_batches=256,
+        batch_size=512,
         num_workers=0,  # this is necessary since we want to generate the dataset directly on the GPU, not in a CPU subprocess
     ))
-    Hs = [2**i for i in range(17)]
-    dims = [2**i for i in range(2, 7)]
+    config.num_test_batches = 16_384 // config.batch_size
+    Hs = reversed([2**i for i in range(15)])
+    dims = reversed([2**i for i in range(2, 7)])
     assert torch.cuda.is_available()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     results = []
-    for dim, H, seed in tqdm(list(product(dims, Hs, range(10)))):
+    for seed, dim, H in tqdm(list(product(range(10), dims, Hs))):
         with torch.no_grad():
-            model = OptimallyWeightedRandom(dim, H, num_gegenbauer_terms=40, scipy_solver=True, seed=int(2e7 + seed), device=device)
+            model = OptimallyWeightedRandom(dim, H, num_gegenbauer_terms=40, scipy_solver=False, seed=int(2e7 + seed), device=device)
             # since dataset is an iterable, must recreate it each inner
             # iteration to reset it
             data = dataset(oc.merge(config, {"dim": dim, "seed": int(1e7+seed)}), device=device)
             squared_error = model_mse(model, data, config.num_test_batches)
         # squared_error = float(test_model(model, oc.merge(config, {"seed": int(1e7+seed)})))
-        results.append((dim, H, squared_error))
+        results.append((dim, H, seed, squared_error))
+        with open("/home/nia4240/attention-formers/running_sweep_results.csv", "a") as f:
+            print(dim, H, seed, squared_error, sep=",", file=f)
 
-    df = pd.DataFrame(results, columns=["d", "H", "Squared Error"])
+    df = pd.DataFrame(results, columns=["dim", "H", "seed", "Squared Error"])
     filename = f"/home/nia4240/attention-formers/weighted_results_sweep.csv"
     df.to_csv(filename, index=False)
     df = pd.read_csv(filename)
