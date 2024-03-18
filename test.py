@@ -2,7 +2,7 @@ from fire import Fire
 from omegaconf import OmegaConf as oc
 import torch
 
-from models import HardMultiheadAttention
+from models import HardMultiheadAttention, OptimallyWeightedRandom
 from train import test_model
 
 
@@ -47,11 +47,18 @@ def test_spaced_construction(**config):
     test_model(model, config)
 
 
+def test_optimally_weighted(**config):
+    config = oc.create(config)
+    assert config.rank == 1
+    model = OptimallyWeightedRandom(config.dim, config.nheads)
+    test_model(model, config)
+
+
 if __name__ == "__main__":
-    test_spaced_construction(
+    test_optimally_weighted(
         dim=2,
         rank=1,
-        nheads=2**16,
+        nheads=2**10,
         num_points=2,
         num_queries=4,
         task="ortho",

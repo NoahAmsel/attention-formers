@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from models import OptimallyWeightedRandom, CheatingWeights
+from models import CheatingWeights
 from task import dataset
 from train import test_model
 

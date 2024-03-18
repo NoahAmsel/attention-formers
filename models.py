@@ -2,8 +2,10 @@ from abc import ABC, abstractmethod
 from math import sqrt
 
 import torch
+import scipy.linalg
 
 from task import samples_from_sphere, create_rng, NearestPointDataset
+from theory_experiments.verify_joan import HeadVsTarget
 
 
 class AbstractMultiheadAttention(torch.nn.Module, ABC):
@@ -114,16 +116,25 @@ class HardMultiheadAttention(AbstractMultiheadAttention):
 
 
 class OptimallyWeightedRandom(HardMultiheadAttention):
-    def __init__(self, nheads, seed=None, device=None, dtype=None):
-        super().__init__(dim=2, rank=1, nheads=nheads, device=device, dtype=dtype)
+    def __init__(self, dim, nheads, num_gegenbauer_terms, scipy_solver=False, seed=None, device=None, dtype=None):
+        super().__init__(dim=dim, rank=1, nheads=nheads, device=device, dtype=dtype)
         rng = create_rng(seed, device)
-        self.Q.data[:, 0, :] = samples_from_sphere(2, nheads, rng).T
-        self.K.data[:, 0, :] = samples_from_sphere(2, nheads, rng).T
+        self.Q.data[:, 0, :] = samples_from_sphere(dim, nheads, rng).T
+        self.K.data[:, 0, :] = samples_from_sphere(dim, nheads, rng).T
 
+        if dim == 2:
+            b = self.head_vs_target_2D(self.Q[:, 0, :].T, self.K[:, 0, :].T)
+        else:
+            b = self.approx_head_vs_target(self.Q[:, 0, :].T, self.K[:, 0, :].T, num_gegenbauer_terms)
         C = self.head_vs_head(self.Q[:, 0, :].T, self.K[:, 0, :].T)
-        b = self.head_vs_target_2D(self.Q[:, 0, :].T, self.K[:, 0, :].T)
-        a = torch.linalg.solve(C, b)
-        self.VO.data = torch.eye(2, device=device, dtype=dtype).expand(nheads, 2, 2) * a.reshape(-1, 1, 1)
+        if scipy_solver:
+            C = C.numpy(force=True)
+            b = b.numpy(force=True)
+            a = scipy.linalg.solve(C, b, assume_a='pos')
+            a = torch.from_numpy(a).to(device)
+        else:
+            a = torch.linalg.solve(C, b)
+        self.VO.data = torch.eye(dim, device=device, dtype=dtype).expand(nheads, dim, dim) * a.reshape(-1, 1, 1)
 
     @staticmethod
     def head_vs_head(Qs, Ks):
@@ -137,6 +148,16 @@ class OptimallyWeightedRandom(HardMultiheadAttention):
         angles = torch.arccos(torch.clip((Qs * Ks).sum(dim=0), -1, 1))
         fixed_angles = torch.pi/2 - torch.abs(torch.pi/2 - angles)
         return (1/2) + torch.sign(torch.pi/2 - angles) * (0.25 - (fixed_angles/torch.pi)**2)
+
+    @staticmethod
+    def approx_head_vs_target(Qs, Ks, num_gegenbauer_terms):
+        # Qs and Ks have shape dim x num heads
+        q_norms_inv = 1 / torch.norm(Qs, dim=0)
+        k_norms_inv = 1 / torch.norm(Ks, dim=0)
+        angles = torch.arccos(torch.clip((Qs * Ks).sum(axis=0) * q_norms_inv * k_norms_inv, -1, 1))
+        angles = angles.numpy(force=True)
+        a = HeadVsTarget(Qs.shape[0], num_gegenbauer_terms)(angles)
+        return torch.from_numpy(a).float().to(Qs.device)
 
 
 class CheatingWeights(AbstractMultiheadAttention):
