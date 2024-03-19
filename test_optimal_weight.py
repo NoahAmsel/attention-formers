@@ -79,16 +79,16 @@ if __name__ == "__main__":
             squared_error = model_mse(model, data, config.num_test_batches)
         # squared_error = float(test_model(model, oc.merge(config, {"seed": int(1e7+seed)})))
         results.append((dim, H, seed, squared_error))
-        with open("/home/nia4240/attention-formers/running_sweep_results.csv", "a") as f:
+        with open("/home/nia4240/attention-formers/results/running_sweep_results.csv", "a") as f:
             print(dim, H, seed, squared_error, sep=",", file=f)
 
     df = pd.DataFrame(results, columns=["dim", "H", "seed", "Squared Error"])
-    filename = f"/home/nia4240/attention-formers/weighted_results_sweep.csv"
+    filename = f"/home/nia4240/attention-formers/results/weighted_results_sweep.csv"
     df.to_csv(filename, index=False)
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("weighted_results_sweep.csv")
+    df = pd.read_csv("results/weighted_results_sweep.csv")
     curves = df.groupby(["dim", "H"])["Squared Error"].mean()
     p = sns.lineplot(data=curves.reset_index(), x="H", hue="dim", y="Squared Error")
     plt.xscale('log')
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("weighted_results_sweep.csv")
+    df = pd.read_csv("results/weighted_results_sweep.csv")
     plot_dim = 64
     curve = df.groupby(["dim", "H"])["Squared Error"].mean().loc[plot_dim]
     plot_H(curve, plot_dim)
@@ -107,6 +107,6 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     plot_dim = 30
-    df = pd.read_csv(f"weighted_results_d={plot_dim}_H=65536.csv")
+    df = pd.read_csv(f"results/weighted_results_d={plot_dim}_H=65536.csv")
     curve = df.groupby("H")["Squared Error"].mean()
     plot_H(curve, plot_dim)
