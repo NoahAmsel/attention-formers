@@ -1,14 +1,55 @@
-from itertools import product
+from itertools import accumulate, count, islice, product, takewhile
+from math import comb
 
 import matplotlib.pyplot as plt
+import numpy as np
 from omegaconf import OmegaConf as oc
 import pandas as pd
+import seaborn as sns
 import torch
 from tqdm import tqdm
 
 from models import OptimallyWeightedRandom
 from task import dataset
 from test_cheating import model_mse, slope
+from theory_experiments.verify_joan import GegenbauerTransform
+
+def num_harmonics(ambient_dim, level):
+    dim = ambient_dim - 1
+    if level == 0:
+        return 1
+    else:
+        return comb(level + dim - 2, dim - 1) * (2*level + dim - 1) // level
+
+
+def thresholds(ambient_dim, max_H):
+    return list(takewhile(lambda x: x <= max_H, accumulate(num_harmonics(ambient_dim, level) for level in count())))
+
+
+def analytic_error(dim, max_H):
+    sgn = GegenbauerTransform(dim, np.sign, parity="odd")
+    P_greater_than_deg = accumulate((-sgn.coeff(deg)**2 for deg in count()), initial=1)
+    Hs = thresholds(dim, max_H)
+    # TODO!
+    print("TODO!")
+    # actually, instead of just flatlining during the even degrees, maybe we should go straight on to the odd ones
+    # or maybe each new head should simultaneously contribute to EVERY degree that isn't already filled up
+    return Hs, list(islice(P_greater_than_deg, len(Hs)))
+    # 0,0
+    # N(d,0), eta_0^2
+    # N(d,1), eta_0^2 + eta_1^2
+
+
+def plot_H(curve, dim):
+    s = slope(np.log(curve.index.to_numpy()), np.log(curve.to_numpy()))
+    print(s)
+    plt.loglog(curve)
+    # plt.vlines(thresholds(dim, max(curve.index)), min(curve), max(curve))
+    Hpoints, Epoints = analytic_error(dim, max(curve.index))
+    plt.loglog(Hpoints, Epoints)
+    plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b\ndim={dim}\nslope={s:.2f}")
+    plt.xlabel("H")
+    plt.ylabel("MSE")
 
 
 if __name__ == "__main__":
@@ -24,14 +65,14 @@ if __name__ == "__main__":
         num_workers=0,  # this is necessary since we want to generate the dataset directly on the GPU, not in a CPU subprocess
     ))
     config.num_test_batches = 16_384 // config.batch_size
-    Hs = reversed([2**i for i in range(15)])
+    Hs = reversed([2**i for i in range(17)])
     dims = reversed([2**i for i in range(2, 7)])
     assert torch.cuda.is_available()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     results = []
     for seed, dim, H in tqdm(list(product(range(10), dims, Hs))):
         with torch.no_grad():
-            model = OptimallyWeightedRandom(dim, H, num_gegenbauer_terms=40, scipy_solver=False, seed=int(2e7 + seed), device=device)
+            model = OptimallyWeightedRandom(dim, H, num_gegenbauer_terms=40, scipy_solver=True, seed=int(2e7 + seed), device=device)
             # since dataset is an iterable, must recreate it each inner
             # iteration to reset it
             data = dataset(oc.merge(config, {"dim": dim, "seed": int(1e7+seed)}), device=device)
@@ -44,18 +85,28 @@ if __name__ == "__main__":
     df = pd.DataFrame(results, columns=["dim", "H", "seed", "Squared Error"])
     filename = f"/home/nia4240/attention-formers/weighted_results_sweep.csv"
     df.to_csv(filename, index=False)
-    df = pd.read_csv(filename)
-    curve = df.groupby("H")["Squared Error"].mean()
 
-    s = slope(torch.log(Hs), torch.log(torch.tensor(curve.to_numpy())))
-    print(s)
-    plt.semilogy(Hs, curve)
-    plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b\ndim={config.dim}\nslope={s:.2f}")
+
+if __name__ == "__main__":
+    df = pd.read_csv("weighted_results_sweep.csv")
+    curves = df.groupby(["dim", "H"])["Squared Error"].mean()
+    p = sns.lineplot(data=curves.reset_index(), x="H", hue="dim", y="Squared Error")
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b")
     plt.xlabel("H")
     plt.ylabel("MSE")
 
-    # import seaborn as sns
-    # df["1/MSE"] = 1/df['Squared Error']
-    # p = sns.lineplot(df, x='H', y='1/MSE')
-    # p.set(xscale='log')
-    # p.set(yscale='log')
+
+if __name__ == "__main__":
+    df = pd.read_csv("weighted_results_sweep.csv")
+    plot_dim = 64
+    curve = df.groupby(["dim", "H"])["Squared Error"].mean().loc[plot_dim]
+    plot_H(curve, plot_dim)
+
+
+if __name__ == "__main__":
+    plot_dim = 30
+    df = pd.read_csv(f"weighted_results_d={plot_dim}_H=65536.csv")
+    curve = df.groupby("H")["Squared Error"].mean()
+    plot_H(curve, plot_dim)
