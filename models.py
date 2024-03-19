@@ -7,7 +7,7 @@ import scipy.linalg
 from task import samples_from_sphere, create_rng, NearestPointDataset
 from theory_experiments.verify_joan import HeadVsTarget
 
-
+# TODO: add seed
 class AbstractMultiheadAttention(torch.nn.Module, ABC):
     def __init__(self, dim, rank, nheads, device=None, dtype=None):
         super().__init__()

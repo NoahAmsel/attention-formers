@@ -1,23 +1,19 @@
 import git
-import lightning as pl
+import lightning as L
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
+from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.loggers import CSVLogger, WandbLogger
-from omegaconf import OmegaConf as oc
 import torch
 
 from models import SoftMultiheadAttention
-from task import dataset
+from task import dataset, NearestPointDataModule
 
 
-class LitSequenceRegression(pl.LightningModule):
-    def __init__(self, model, **config):
+class LitSequenceRegression(L.LightningModule):
+    def __init__(self, model: torch.nn.Module, lr: float, scale_batch: bool = False):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["model"])
         self.model = model
-
-    @property
-    def config(self):
-        return self.hparams
 
     def loss(self, batch):
         # X has dimensions: (batch size, dim, num points)
@@ -29,7 +25,7 @@ class LitSequenceRegression(pl.LightningModule):
         # MSE loss averages all the entry-wise errors
         # but we don't want to average over dimension of the vectors,
         # so mulitply by dim
-        if self.config.scale_batch:
+        if self.hparams.scale_batch:
             scale = (labels * labels_hat).sum() / (labels_hat ** 2).sum()
             labels_hat *= scale
         return torch.nn.functional.mse_loss(labels_hat, labels) * dim
@@ -45,22 +41,29 @@ class LitSequenceRegression(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.config.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
         # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         #     optimizer, factor=.1, patience=10, threshold=.01, verbose=True)
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=self.config.epochs, verbose=True
-        )
+        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        #     optimizer, T_max=self.hparams.epochs, verbose=True
+        # )
         return {
             "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": lr_scheduler,
-                "monitor": "train_loss",
-            },
+            # "lr_scheduler": {
+            #     "scheduler": lr_scheduler,
+            #     "monitor": "train_loss",
+            # },
         }
 
 
-class PerfectTraining(LitSequenceRegression):
+class LitSoftmaxAttention(LitSequenceRegression):
+    def __init__(self, dim: int, rank: int, nheads: int, lr: float, scale_batch: bool = False):
+        model = SoftMultiheadAttention(dim=dim, rank=rank, nheads=nheads)
+        super().__init__(model=model, lr=lr, scale_batch=scale_batch)
+        self.save_hyperparameters()
+
+
+class PerfectTraining(LitSoftmaxAttention):
     @staticmethod
     def compare_to_identity(matrix):
         dim = matrix.shape[0]
@@ -91,9 +94,8 @@ def train(**config):
     config.git_hash = repo.head.object.hexsha
 
     data = dataset(config)
-    model = SoftMultiheadAttention(dim=config.dim, rank=config.rank, nheads=config.nheads)
-    module = PerfectTraining if config.log_matrix_metrics else LitSequenceRegression
-    lit_model = module(model, **config)
+    module = PerfectTraining if config.log_matrix_metrics else LitSoftmaxAttention
+    lit_model = module(**config)
 
     csv_logger = CSVLogger(
         save_dir=config.csv_log_dir,
@@ -112,7 +114,7 @@ def train(**config):
         )
         logger = [csv_logger, wandb_logger]
 
-    trainer = pl.Trainer(
+    trainer = L.Trainer(
         limit_train_batches=100,
         max_epochs=config.epochs,
         logger=logger,
@@ -131,11 +133,16 @@ def train(**config):
 def test_model(model, config):
     data = dataset(config)
     lit_model = LitSequenceRegression(model, **config)
-    tester = pl.Trainer(limit_test_batches=config.num_test_batches, logger=False)
+    tester = L.Trainer(limit_test_batches=config.num_test_batches, logger=False)
     return tester.test(model=lit_model, dataloaders=data)
 
 
+def main():
+    cli = LightningCLI(LitSoftmaxAttention, NearestPointDataModule)
+
 if __name__ == "__main__":
+    main()
+    exit(0)
     train(
         dim=2,
         rank=1,
