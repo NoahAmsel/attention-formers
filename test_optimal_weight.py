@@ -89,8 +89,8 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     df = pd.read_csv("results/weighted_results_sweep.csv")
-    curves = df.groupby(["dim", "H"])["Squared Error"].mean()
-    p = sns.lineplot(data=curves.reset_index(), x="H", hue="dim", y="Squared Error")
+    # curves = df.groupby(["dim", "H"])["Squared Error"].min()
+    p = sns.lineplot(data=df, x="H", hue="dim", y="Squared Error", errorbar=("pi", 100))
     plt.xscale('log')
     plt.yscale('log')
     plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b")
@@ -101,6 +101,7 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     df = pd.read_csv("results/weighted_results_sweep.csv")
     plot_dim = 64
+    # should below be min?
     curve = df.groupby(["dim", "H"])["Squared Error"].mean().loc[plot_dim]
     plot_H(curve, plot_dim)
 
@@ -108,5 +109,6 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     plot_dim = 30
     df = pd.read_csv(f"results/weighted_results_d={plot_dim}_H=65536.csv")
+    # should below be min? 
     curve = df.groupby("H")["Squared Error"].mean()
     plot_H(curve, plot_dim)
