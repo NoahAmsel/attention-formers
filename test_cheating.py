@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from models import CheatingWeights
 from task import dataset
-from train import test_model
+from test import test_model
 
 
 def loss(model, batch, scale_batch=False):

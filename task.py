@@ -66,7 +66,7 @@ class NearestPointDataModule(L.LightningDataModule):
         if device_name is None:
             self.device = None
         else:
-            torch.device(device_name)
+            self.device = torch.device(device_name)
 
     def setup(self, stage):
         self.dataset = self.hparams.dataset_class(
@@ -96,6 +96,15 @@ class NearestPointDataModule(L.LightningDataModule):
         self.dataset = state_dict["dataset"]
 
 
-def dataset(config, device=None):
+def dataset(dataset_name: str, dim: int, num_points: int, num_queries: int, batch_size: int, num_workers: int = 0, seed:int = None, device_name:str = None):
     name2task = {"unif": NearestPointDataset, "ortho": NearestPointDatasetOrthogonal, "doubled": NearestPointDatasetDoubled}
-    return NearestPointDataModule(name2task[config.task], **config).dataloader()
+    return NearestPointDataModule(
+        dataset_class=name2task[dataset_name],
+        dim=dim,
+        num_points=num_points,
+        num_queries=num_queries,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        seed=seed,
+        device_name=device_name
+    ).dataloader()

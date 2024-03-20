@@ -1,16 +1,16 @@
 import git
 import lightning as L
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
+from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.loggers import CSVLogger, WandbLogger
 import torch
 
 from models import SoftMultiheadAttention
-from task import dataset, NearestPointDataModule
+from task import NearestPointDataModule
 
 
 class LitSequenceRegression(L.LightningModule):
-    def __init__(self, model: torch.nn.Module, lr: float, scale_batch: bool = False):
+    def __init__(self, model: torch.nn.Module, scale_batch: bool = False):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
         self.model = model
@@ -40,27 +40,31 @@ class LitSequenceRegression(L.LightningModule):
         self.log("test_loss", loss, on_step=False, on_epoch=True, logger=True)
         return loss
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
-        # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #     optimizer, factor=.1, patience=10, threshold=.01, verbose=True)
-        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        #     optimizer, T_max=self.hparams.epochs, verbose=True
-        # )
-        return {
-            "optimizer": optimizer,
-            # "lr_scheduler": {
-            #     "scheduler": lr_scheduler,
-            #     "monitor": "train_loss",
-            # },
-        }
+    # def configure_optimizers(self):
+    #     # TODO: SGD?
+    #     optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
+    #     # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    #     #     optimizer, factor=.1, patience=10, threshold=.01, verbose=True)
+    #     # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    #     #     optimizer, T_max=self.hparams.epochs, verbose=True
+    #     # )
+    #     return {
+    #         "optimizer": optimizer,
+    #         # "lr_scheduler": {
+    #         #     "scheduler": lr_scheduler,
+    #         #     "monitor": "train_loss",
+    #         # },
+    #     }
 
 
 class LitSoftmaxAttention(LitSequenceRegression):
-    def __init__(self, dim: int, rank: int, nheads: int, lr: float, scale_batch: bool = False):
+    def __init__(self, dim: int, rank: int, nheads: int, scale_batch: bool = False):
         model = SoftMultiheadAttention(dim=dim, rank=rank, nheads=nheads)
-        super().__init__(model=model, lr=lr, scale_batch=scale_batch)
+        super().__init__(model=model, scale_batch=scale_batch)
         self.save_hyperparameters()
+        # TODO: this doesn't seem to be working at all
+        # TODO: should this be in LitSequenceRegression?
+        self.hparams.git_hash = git.Repo(__file__, search_parent_directories=True).head.object.hexsha
 
 
 class PerfectTraining(LitSoftmaxAttention):
@@ -87,81 +91,43 @@ class PerfectTraining(LitSoftmaxAttention):
         self.log("VO_off_diag_error", VO_off_diag_error, logger=True)
 
 
-def train(**config):
-    config = oc.create(config)
-    # Update git hash with current commit
-    repo = git.Repo(config.code_dir, search_parent_directories=True)
-    config.git_hash = repo.head.object.hexsha
+class MyLightningCLI(LightningCLI):
+    def add_arguments_to_parser(self, parser):
+        parser.link_arguments("data.dim", "model.dim")
+        parser.add_optimizer_args(torch.optim.SGD)  # Adam
+        parser.add_lr_scheduler_args(torch.optim.lr_scheduler.ExponentialLR)
 
-    data = dataset(config)
-    module = PerfectTraining if config.log_matrix_metrics else LitSoftmaxAttention
-    lit_model = module(**config)
+        parser.add_argument("--experiment_name", default="lightning_logs")
+        # TODO: In future, instead of linking these deterministically, just
+        # use variable interpolation in the default config file
+        # this will also avoid ambiguity in the next line if there are more than one logger
+        parser.link_arguments("experiment_name", "trainer.logger.init_args.name")
 
-    csv_logger = CSVLogger(
-        save_dir=config.csv_log_dir,
-        name=config.experiment_name,
-        version=config.experiment_version
-    )
-    if config.skip_wandb:
-        logger = [csv_logger]
-    else:
-        wandb_logger = WandbLogger(
-            name=str(config.experiment_name),
-            save_dir=config.wandb_log_parent_dir,
-            version=f"{config.experiment_name}-{config.experiment_version}",
-            project="attention-rank",
-            entity="noahamselsteam",
-        )
-        logger = [csv_logger, wandb_logger]
-
-    trainer = L.Trainer(
-        limit_train_batches=100,
-        max_epochs=config.epochs,
-        logger=logger,
-        callbacks=[
-            LearningRateMonitor(logging_interval='epoch'),
-            ModelCheckpoint(save_top_k=1, save_last=True, monitor="train_loss", mode="min")
-        ]
-    )
-    # if not config.skip_wandb:
-    #     wandb_logger.watch(lit_model, log="all", log_freq=10)
-    trainer.fit(model=lit_model, train_dataloaders=data)
-    # if not config.skip_wandb:
-    #     wandb_logger.experiment.unwatch(lit_model)
-
-
-def test_model(model, config):
-    data = dataset(config)
-    lit_model = LitSequenceRegression(model, **config)
-    tester = L.Trainer(limit_test_batches=config.num_test_batches, logger=False)
-    return tester.test(model=lit_model, dataloaders=data)
+        # TODO: wandb logger, if some option is set
+        # wandb_logger = WandbLogger(
+        #     name=str(config.experiment_name),
+        #     save_dir=config.wandb_log_parent_dir,
+        #     version=f"{config.experiment_name}-{config.experiment_version}",
+        #     project="attention-rank",
+        #     entity="noahamselsteam",
+        # )
 
 
 def main():
-    cli = LightningCLI(LitSoftmaxAttention, NearestPointDataModule)
+    cli = MyLightningCLI(
+        LitSoftmaxAttention,
+        NearestPointDataModule,
+        trainer_defaults=dict(
+            callbacks=[
+                # TODO: remove this restriction and alter limit_train_batches so that the total number of batches is constant
+                BatchSizeFinder(max_trials=9),
+                # LearningRateFinder(),  # TODO: this doesn't seem to play nicely with configs. investigate
+                LearningRateMonitor(logging_interval="epoch"),
+                ModelCheckpoint(monitor="train_loss", save_last=True),
+            ],
+        ),
+    )
+
 
 if __name__ == "__main__":
     main()
-    exit(0)
-    train(
-        dim=2,
-        rank=1,
-        nheads=int(2**14),
-        num_points=2,
-        num_queries=4,
-        task="ortho",
-        scale_batch=False,
-        batch_size=2024,
-        lr=5e-3,
-        epochs=400,
-        log_matrix_metrics=False,
-        num_workers=4,
-        experiment_name="dim2_maxheads",
-        experiment_version=None,
-        skip_wandb=True,
-        debug=True,
-        code_dir="/home/nia4240/attention-formers",
-        csv_log_dir="/home/nia4240/attention-formers/csv_logs",
-        wandb_log_parent_dir="/home/nia4240/attention-formers/wandb_logs",
-    )
-    # Fire(train)

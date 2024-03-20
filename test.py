@@ -1,9 +1,16 @@
-from fire import Fire
-from omegaconf import OmegaConf as oc
 import torch
+import lightning as L
 
 from models import HardMultiheadAttention, OptimallyWeightedRandom
-from train import test_model
+from task import dataset
+from train import LitSequenceRegression
+
+
+def test_model(model, num_test_batches, scale_batch=False, **dataset_kwargs):
+    data = dataset(**dataset_kwargs)
+    lit_model = LitSequenceRegression(model, scale_batch=scale_batch)
+    tester = L.Trainer(limit_test_batches=num_test_batches, logger=False)
+    return tester.test(model=lit_model, dataloaders=data)
 
 
 class ZeroModel(torch.nn.Module):
@@ -21,37 +28,32 @@ def test_zero_construction(**config):
     """Useful for testing that the loss is calculated correctly.
     Loss should always be 1.
     """
-    config = oc.create(config)
-    test_model(ZeroModel(), config)
+    test_model(ZeroModel(), **config)
 
 
 def test_perfect_construction(**config):
-    config = oc.create(config)
     model = HardMultiheadAttention.perfect_construction(dim=config.dim)
-    test_model(model, config)
+    test_model(model, **config)
 
 
 def test_random_construction(**config):
-    config = oc.create(config)
     model = HardMultiheadAttention.random_construction(
-        config.dim, config.rank, config.nheads
+        config["dim"], config["rank"], config["nheads"]
     )
-    test_model(model, config)
+    test_model(model, **config)
 
 
 def test_spaced_construction(**config):
-    config = oc.create(config)
-    assert config.dim == 2
-    assert config.rank == 1
-    model = HardMultiheadAttention.spaced_out_construction(config.nheads)
-    test_model(model, config)
+    assert config["dim"] == 2
+    assert config["rank"] == 1
+    model = HardMultiheadAttention.spaced_out_construction(config["nheads"])
+    test_model(model, **config)
 
 
 def test_optimally_weighted(**config):
-    config = oc.create(config)
-    assert config.rank == 1
-    model = OptimallyWeightedRandom(config.dim, config.nheads)
-    test_model(model, config)
+    assert config["rank"] == 1
+    model = OptimallyWeightedRandom(config["dim"], config["nheads"], config["num_gegenbauer_terms"])
+    test_model(model, **config)
 
 
 if __name__ == "__main__":
@@ -61,11 +63,12 @@ if __name__ == "__main__":
         nheads=2**10,
         num_points=2,
         num_queries=4,
-        task="ortho",
-        scale_batch=True,
+        dataset_name="ortho",
+        scale_batch=False,
         batch_size=128,
         num_test_batches=256,
         num_workers=4,
+        num_gegenbauer_terms=100,
     )
     # Fire(test_random_construction)
     # TODO: make separate command line endpoints for test random, test perfect, test zero, etc
