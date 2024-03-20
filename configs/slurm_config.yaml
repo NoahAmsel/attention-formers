@@ -1,0 +1,13 @@
+# # Slurm and environment set up
+# slurm_log_dir: ${code_dir}/slurm_logs
+# overlay: /scratch/nia4240/overlay-50G-10M.ext3
+# conda_env: attention
+
+open_mode: append
+output: slurm_logs/%A_%a.out
+error: slurm_logs/%A_%a.err
+# must be HH:MM:SS. Not 1:00:00!!
+time: 01:00:00
+mem: 64G
+cpus_per_task: 16  # ${num_workers}
+gpus_per_node: 1

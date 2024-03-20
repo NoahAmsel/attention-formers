@@ -1,7 +1,7 @@
 import git
 import lightning as L
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, ModelCheckpoint
-from lightning.pytorch.cli import LightningCLI
+from lightning.pytorch.cli import ArgsType, LightningCLI
 from lightning.pytorch.loggers import CSVLogger, WandbLogger
 import torch
 
@@ -113,7 +113,7 @@ class MyLightningCLI(LightningCLI):
         # )
 
 
-def main():
+def main(args: ArgsType = None):
     cli = MyLightningCLI(
         LitSoftmaxAttention,
         NearestPointDataModule,
@@ -126,6 +126,7 @@ def main():
                 ModelCheckpoint(monitor="train_loss", save_last=True),
             ],
         ),
+        args=args
     )
 
 
