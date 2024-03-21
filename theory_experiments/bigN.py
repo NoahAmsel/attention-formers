@@ -41,23 +41,47 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     # p(win) vs d
     results = []
-    for N in tqdm(range(10, 100, 10)):
-        for d in range(N, 200, 5):
+    for N in tqdm(np.round(np.geomspace(10, 100, num=10)).astype(int)):
+    # for N in [10]:
+        for d in np.round(np.geomspace(N, 100*N, num=10)).astype(int):
             results.append(dict(
                 num_points=N,
                 dim=d,
                 Pr_win=estimate_b(d, N, int(5e6))
             ))
     df = pd.DataFrame(results)
+    df["edge"] = df["Pr_win"] - 1/df["num_points"]
     f, ax = plt.subplots(figsize=(7, 7))
-    sns.lineplot(data=df, x="dim", y="Pr_win", hue="num_points", style="num_points", ax=ax)
+    sns.lineplot(data=df, x="dim", y="edge", hue="num_points", style="num_points", ax=ax)
     ax.set(xscale="log", yscale="log")
 
-    subplotN = 10
-    df2 = df.set_index("dim")
-    curve = df2.loc[df2["num_points"] == subplotN, "Pr_win"]
-    s = slope(np.log(curve.index.to_numpy()), np.log(curve))
-    plt.loglog(curve)
-    plt.title(f"N={subplotN}, slope={s:.2f}")
+if __name__ == "__main__":
+    N = 10
+    ds = np.round(np.geomspace(N, 100 * N, num=20)).astype(int)
+    bs = np.array([estimate_b(d, N, int(5e6)) for d in ds])
+    s = slope(np.log(ds), np.log(bs))
+    joan = (1/N + 1/np.sqrt(ds))
+    plt.loglog(ds, bs, marker='.', label="empirical")
+    plt.loglog(ds, joan, label="1/N + 1/sqrt(d)")
+    plt.hlines([1/N], min(ds), max(ds), label="1/N")
+    plt.title(f"N={N}, slope={s:.2f}")
     plt.xlabel("dim")
     plt.ylabel("Pr[correct]")
+
+    edge = bs - (1/N)
+    edge_slope = slope(np.log(ds), np.log(edge))
+    plt.loglog(ds, edge, marker=".")
+    plt.title(f"N={N}, slope={edge_slope:.2f}")
+    plt.xlabel("dim")
+    plt.ylabel("edge = Pr[correct] - 1/N")
+
+if __name__ == "__main__":
+    dim = 100
+    Ns = np.round(np.geomspace(dim//10, dim, num=20)).astype(int)
+    bs = np.array([estimate_b(dim, N, int(5e6)) for N in tqdm(Ns)])
+    edge = bs - (1/Ns)
+    edge_slope = slope(np.log(Ns), np.log(edge))
+    plt.loglog(Ns, edge, marker=".")
+    plt.title(f"dim={dim}, slope={edge_slope:.2f}")
+    plt.xlabel("N")
+    plt.ylabel("edge = Pr[correct] - 1/N")
