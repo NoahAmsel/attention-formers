@@ -1,4 +1,4 @@
-experiment_name: march24_cosine_sweep
+# experiment_name: march24_cosine_sweep
 trainer:
   limit_train_batches: 100
   max_epochs: 100
@@ -7,17 +7,18 @@ trainer:
       init_args:
         save_dir: "/scratch/nia4240/attention-scratch/csv_logs"
 model:
-  rank: 1
-  # nheads: 32
+  nheads: 1
+  dim_feedforward: 2048
+  num_layers: 1
 data:
-  batch_size: 32  # this is rated up to dim=128, H=16384, num_points=2 num_queries=4
-  dataset_class: task.NearestPointDatasetOrthogonal
-  # dim: 16
-  num_points: 2
-  num_queries: 4
+  batch_size: 2048  # this is rated up to dim=16, num_points=2 num_queries=-1
+  dataset_class: task.NearestPointDataset
+  dim: 16
+  num_points: 3
+  num_queries: -1
   num_workers: 15
 optimizer:
-  # lr: 0.001
+  lr: 0.001
   betas:
     - .9
     - .95

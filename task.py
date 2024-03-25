@@ -31,9 +31,12 @@ class NearestPointDataset(torch.utils.data.IterableDataset):
         return create_rng(seed=self.seed, device=self.device)
 
     @staticmethod
-    def label(X, Y):
+    def label_nearest(X, Y):
         return X[:, (X.T @ Y).argmax(axis=0)]
 
+    def label_farthest(X, Y):
+        return X[:, (X.T @ Y).argmin(axis=0)]
+    
     def _draw_X(self, rng):
         return samples_from_sphere(self.dim, self.num_points, rng)
 
@@ -41,8 +44,11 @@ class NearestPointDataset(torch.utils.data.IterableDataset):
         rng = self.create_rng()
         while True:
             X = self._draw_X(rng)
-            Y = samples_from_sphere(self.dim, self.num_queries, rng)
-            yield X, Y, self.label(X, Y)
+            if self.num_queries == -1:  # TODO: make the special value None instead of -1?
+                yield X, self.label_farthest(X, X)
+            else:
+                Y = samples_from_sphere(self.dim, self.num_queries, rng)
+                yield X, Y, self.label_nearest(X, Y)
 
 
 class NearestPointDatasetDoubled(NearestPointDataset):

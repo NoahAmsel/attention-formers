@@ -11,7 +11,36 @@ from models import SoftMultiheadAttention
 from task import NearestPointDataModule
 
 
-class LitSequenceRegression(L.LightningModule):
+class SimpleLightningModule(L.LightningModule):
+    def training_step(self, batch, batch_idx):
+        loss = self.loss(batch)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
+        return loss
+
+    def test_step(self, batch, batch_ix):
+        loss = self.loss(batch)
+        self.log("test_loss", loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+        return loss
+
+
+class EncoderRegression(SimpleLightningModule):
+    def __init__(self, dim: int, nheads: int, dim_feedforward: int, num_layers: int, bias: bool = True):
+        super().__init__()
+        self.save_hyperparameters(ignore=["model"])
+        layer = torch.nn.TransformerEncoderLayer(d_model=dim, nhead=nheads, dim_feedforward=dim_feedforward, dropout=0, batch_first=True, bias=bias)
+        self.model = torch.nn.TransformerEncoder(layer, num_layers=num_layers, enable_nested_tensor=False)
+
+    def loss(self, batch):
+        # X has dimensions: (batch size, dim, num points)
+        # labels has dimensions: (batch size, dim, num points)
+        X, labels = batch
+        _, dim, _ = labels.shape
+        # model input and output has shape (batch size, num points, dim) because batch_first=True
+        labels_hat = torch.permute(self.model(torch.permute(X, (0, 2, 1))), (0, 2, 1))
+        return torch.nn.functional.mse_loss(labels_hat, labels) * dim
+
+
+class LitSequenceRegression(SimpleLightningModule):
     def __init__(self, model: torch.nn.Module, scale_batch: bool = False):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
@@ -32,32 +61,6 @@ class LitSequenceRegression(L.LightningModule):
             labels_hat *= scale
         return torch.nn.functional.mse_loss(labels_hat, labels) * dim
 
-    def training_step(self, batch, batch_idx):
-        loss = self.loss(batch)
-        self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
-        return loss
-
-    def test_step(self, batch, batch_ix):
-        loss = self.loss(batch)
-        self.log("test_loss", loss, on_step=False, on_epoch=True, logger=True)
-        return loss
-
-    # def configure_optimizers(self):
-    #     # TODO: SGD?
-    #     optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
-    #     # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    #     #     optimizer, factor=.1, patience=10, threshold=.01, verbose=True)
-    #     # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    #     #     optimizer, T_max=self.hparams.epochs, verbose=True
-    #     # )
-    #     return {
-    #         "optimizer": optimizer,
-    #         # "lr_scheduler": {
-    #         #     "scheduler": lr_scheduler,
-    #         #     "monitor": "train_loss",
-    #         # },
-    #     }
-
 
 class LitSoftmaxAttention(LitSequenceRegression):
     def __init__(self, dim: int, rank: int, nheads: int, scale_batch: bool = False):
@@ -67,6 +70,17 @@ class LitSoftmaxAttention(LitSequenceRegression):
         # TODO: this doesn't seem to be working at all
         # TODO: should this be in LitSequenceRegression?
         self.hparams.git_hash = git.Repo(__file__, search_parent_directories=True).head.object.hexsha
+
+
+def extract_fullrank_attn_weights(attn: torch.nn.modules.activation.MultiheadAttention):
+    O = attn.out_proj.weight.data
+    _, dim = attn.in_proj_weight.shape
+    Q = attn.in_proj_weight[:dim, :]
+    K = attn.in_proj_weight[dim:(2*dim), :]
+    V = attn.in_proj_weight[(2*dim):, :]
+    VO = V @ O
+    QK = Q @ K.T
+    return QK, VO
 
 
 class PerfectTraining(LitSoftmaxAttention):
@@ -85,12 +99,12 @@ class PerfectTraining(LitSoftmaxAttention):
     def on_train_epoch_end(self):
         QK_scale, QK_diag_error, QK_off_diag_error = self.compare_to_identity(self.model.assemble_QK(0))
         VO_scale, VO_diag_error, VO_off_diag_error = self.compare_to_identity(self.model.assemble_VO(0))
-        self.log("QK_scale", QK_scale, logger=True)
-        self.log("QK_diag_error", QK_diag_error, logger=True)
-        self.log("QK_off_diag_error", QK_off_diag_error, logger=True)
-        self.log("VO_scale", VO_scale, logger=True)
-        self.log("VO_diag_error", VO_diag_error, logger=True)
-        self.log("VO_off_diag_error", VO_off_diag_error, logger=True)
+        self.log("QK_scale", QK_scale, logger=True, sync_dist=True)
+        self.log("QK_diag_error", QK_diag_error, logger=True, sync_dist=True)
+        self.log("QK_off_diag_error", QK_off_diag_error, logger=True, sync_dist=True)
+        self.log("VO_scale", VO_scale, logger=True, sync_dist=True)
+        self.log("VO_diag_error", VO_diag_error, logger=True, sync_dist=True)
+        self.log("VO_off_diag_error", VO_off_diag_error, logger=True, sync_dist=True)
 
 
 class MyLightningCLI(LightningCLI):
@@ -122,7 +136,7 @@ class MyLightningCLI(LightningCLI):
 
 def main(args: ArgsType = None):
     cli = MyLightningCLI(
-        LitSoftmaxAttention,
+        EncoderRegression,  # LitSoftmaxAttention
         NearestPointDataModule,
         trainer_defaults=dict(
             callbacks=[

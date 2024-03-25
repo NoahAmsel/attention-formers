@@ -1,8 +1,5 @@
-csv_logs
-lightning_logs
+attention-formers.code-workspace
 slurm
-slurm_logs
-wandb
 
 # Github automatically generated:
 # Byte-compiled / optimized / DLL files

@@ -4,8 +4,8 @@
 # conda_env: attention
 
 open_mode: append
-output: slurm_logs/%A/%A_%a.out
-error: slurm_logs/%A/%A_%a.err
+output: /scratch/nia4240/attention-scratch/slurm_logs/%A/%A_%a.out
+error: /scratch/nia4240/attention-scratch/slurm_logs/%A/%A_%a.err
 # must be HH:MM:SS. Not 1:00:00!!
 time: 01:00:00
 mem: 64G

@@ -20,12 +20,14 @@ python slurm.py configs/slurm_config.yaml configs/eg.yaml --grid_path=configs/sw
 ```
 
 ### TODO
-turn on batch size finder!
-try sweep with weight decay and with 1e-4
-should log sweep id and job id
-should log git revision
-off the shelf transformer with different numbers of heads and https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#transformerencoder
-use wandb?
+- turn on batch size finder!
+- try sweep with weight decay and with 1e-4
+- should log sweep id and job id
+- should log git revision
+- off the shelf transformer with different numbers of heads layers
+    - each encoder block has layer norm. how does this affect our problem?
+    - https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#transformerencoder
+- use wandb?
 
 ### done
 TODO: match "version" of csv logger with job_id. since right now things don't match up
