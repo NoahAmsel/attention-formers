@@ -3,6 +3,8 @@ import lightning as L
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.cli import ArgsType, LightningCLI
 from lightning.pytorch.loggers import CSVLogger, WandbLogger
+from lightning.pytorch.strategies import SingleDeviceStrategy
+from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 import torch
 
 from models import SoftMultiheadAttention
@@ -94,14 +96,19 @@ class PerfectTraining(LitSoftmaxAttention):
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.link_arguments("data.dim", "model.dim")
-        parser.add_optimizer_args(torch.optim.SGD)  # Adam
-        parser.add_lr_scheduler_args(torch.optim.lr_scheduler.ExponentialLR)
+        parser.add_optimizer_args(torch.optim.AdamW)
 
         parser.add_argument("--experiment_name", default="lightning_logs")
         # TODO: In future, instead of linking these deterministically, just
         # use variable interpolation in the default config file
         # this will also avoid ambiguity in the next line if there are more than one logger
         parser.link_arguments("experiment_name", "trainer.logger.init_args.name")
+
+        # TODO: try plain cosine annealing
+        parser.add_lr_scheduler_args(LinearWarmupCosineAnnealingLR)
+        parser.link_arguments("trainer.max_epochs", "lr_scheduler.warmup_epochs", lambda x: x // 20)
+        parser.link_arguments("trainer.max_epochs", "lr_scheduler.max_epochs")
+        parser.link_arguments("optimizer.lr", "lr_scheduler.eta_min", lambda x: x // 10)
 
         # TODO: wandb logger, if some option is set
         # wandb_logger = WandbLogger(

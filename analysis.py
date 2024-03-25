@@ -15,7 +15,7 @@ def experiment_analysis(csv_logs_path):
             config = oc.load(Path(run_folder, "config.yaml"))
             run_data.append(dict(
                 loss=metrics.train_loss.min(),
-                lr=metrics.loc[0, "lr-SGD"],
+                lr=metrics["lr-AdamW"].max(),
                 rank=config.model.rank,
                 nheads=config.model.nheads,
                 dim=config.data.dim,
@@ -27,12 +27,13 @@ def experiment_analysis(csv_logs_path):
 
 
 if __name__ == "__main__":
-    df = experiment_analysis("csv_logs/tues_night_big_sweep")
+    df = experiment_analysis("csv_logs/march24_cosine_sweep")
     df = df[df.loss < 10]
     df = df[df.lr == 0.001]
     p = sns.lineplot(data=df, x="nheads", hue="dim", y="loss", errorbar=("pi", 100))
     plt.xscale('log')
     plt.yscale('log')
+    plt.ylim((0.1, 1.5))
     plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b")
     plt.xlabel("H")
     plt.ylabel("MSE")
