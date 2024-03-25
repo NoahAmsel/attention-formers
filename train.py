@@ -120,7 +120,7 @@ def main(args: ArgsType = None):
         trainer_defaults=dict(
             callbacks=[
                 # TODO: remove this restriction and alter limit_train_batches so that the total number of batches is constant
-                BatchSizeFinder(max_trials=9),
+                # BatchSizeFinder(max_trials=9),
                 # LearningRateFinder(),  # TODO: this doesn't seem to play nicely with configs. investigate
                 LearningRateMonitor(logging_interval="epoch"),
                 ModelCheckpoint(monitor="train_loss", save_last=True),

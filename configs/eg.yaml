@@ -10,7 +10,7 @@ model:
   rank: 1
   # nheads: 32
 data:
-  batch_size: 1  # this is a placeholder
+  batch_size: 64  # this is rated up to dim=128, H=16384, num_points=2 num_queries=4
   dataset_class: task.NearestPointDatasetOrthogonal
   # dim: 16
   num_points: 2
