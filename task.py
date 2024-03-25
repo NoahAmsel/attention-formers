@@ -34,6 +34,7 @@ class NearestPointDataset(torch.utils.data.IterableDataset):
     def label_nearest(X, Y):
         return X[:, (X.T @ Y).argmax(axis=0)]
 
+    @staticmethod
     def label_farthest(X, Y):
         return X[:, (X.T @ Y).argmin(axis=0)]
     
@@ -87,8 +88,6 @@ class NearestPointDataModule(L.LightningDataModule):
         return torch.utils.data.DataLoader(self.dataset, batch_size=self.hparams.batch_size, num_workers=self.hparams.num_workers)
 
     def train_dataloader(self): return self.dataloader()
-
-    def val_dataloader(self): return self.dataloader()
 
     def test_dataloader(self): return self.dataloader()
 

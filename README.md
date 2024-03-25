@@ -20,6 +20,7 @@ python slurm.py configs/slurm_config.yaml configs/eg.yaml --grid_path=configs/sw
 ```
 
 ### TODO
+- understand if/why it started using DPP. make sure this is being done properly. read tutorial, make sure the seeds are being set correctly
 - turn on batch size finder!
 - try sweep with weight decay and with 1e-4
 - should log sweep id and job id

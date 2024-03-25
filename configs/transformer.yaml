@@ -1,7 +1,7 @@
 # experiment_name: march24_cosine_sweep
 trainer:
   limit_train_batches: 100
-  max_epochs: 100
+  max_epochs: 200
   logger:
     - class_path: lightning.pytorch.loggers.CSVLogger
       init_args:
@@ -11,15 +11,16 @@ model:
   dim_feedforward: 2048
   num_layers: 1
 data:
-  batch_size: 2048  # this is rated up to dim=16, num_points=2 num_queries=-1
+  batch_size: 4096  # this is rated up to dim=16, num_points=2 num_queries=-1
   dataset_class: task.NearestPointDataset
   dim: 16
   num_points: 3
   num_queries: -1
   num_workers: 15
 optimizer:
-  lr: 0.001
+  lr: 0.01
   betas:
     - .9
     - .95
+  weight_decay: 0
 lr_scheduler:

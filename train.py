@@ -1,3 +1,5 @@
+from math import sqrt
+
 import git
 import lightning as L
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, ModelCheckpoint
@@ -72,39 +74,55 @@ class LitSoftmaxAttention(LitSequenceRegression):
         self.hparams.git_hash = git.Repo(__file__, search_parent_directories=True).head.object.hexsha
 
 
-def extract_fullrank_attn_weights(attn: torch.nn.modules.activation.MultiheadAttention):
-    O = attn.out_proj.weight.data
-    _, dim = attn.in_proj_weight.shape
-    Q = attn.in_proj_weight[:dim, :]
-    K = attn.in_proj_weight[dim:(2*dim), :]
-    V = attn.in_proj_weight[(2*dim):, :]
-    VO = V @ O
-    QK = Q @ K.T
-    return QK, VO
-
-
-class PerfectTraining(LitSoftmaxAttention):
+class PerfectTraining:
     @staticmethod
     def compare_to_identity(matrix):
-        dim = matrix.shape[0]
-        assert dim == matrix.shape[1]
-        # normalize to scale of I. l1 norm of diagonal should be dim to match that of I
-        scale = torch.norm(matrix.diagonal(), p=1) / dim
-        scaled_matrix = matrix / scale
-        max_diag_error = torch.norm(scaled_matrix.diagonal() - 1, p=torch.inf)
-        scaled_matrix.fill_diagonal_(0)
-        max_off_diag_error = torch.norm(scaled_matrix, p=torch.inf)
-        return scale, max_diag_error, max_off_diag_error
+        dim, dim2 = matrix.shape
+        assert dim == dim2
+        frob_norm = torch.norm(matrix)
+        I_norm = sqrt(dim)
+        angle = torch.acos(matrix.diagonal().sum() / (frob_norm * I_norm))
+        return angle, frob_norm / I_norm
+
+    # TODO: for some reason, defining this to be on_train_epoch_end doesn't work. It fails to get called in subclass
+    def log_perfection(self):
+        QK, VO = self.get_QK_VO()
+        QK_angle, QK_norm = self.compare_to_identity(QK)
+        VO_angle, VO_norm = self.compare_to_identity(VO)
+        self.log("QK_angle", QK_angle, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
+        self.log("QK_scale", QK_norm, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+        self.log("VO_angle", VO_angle, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+        self.log("VO_scale", VO_norm, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+
+
+class PerfectEncoderRegression(EncoderRegression, PerfectTraining):
+    def on_train_epoch_end(self):
+        super().on_train_epoch_end()
+        self.log_perfection()
+
+    @staticmethod
+    def extract_fullrank_attn_weights(attn: torch.nn.modules.activation.MultiheadAttention):
+        O = attn.out_proj.weight.data
+        _, dim = attn.in_proj_weight.shape
+        Q = attn.in_proj_weight[:dim, :]
+        K = attn.in_proj_weight[dim:(2*dim), :]
+        V = attn.in_proj_weight[(2*dim):, :]
+        VO = V @ O
+        QK = Q @ K.T
+        return QK, VO
+
+    def get_QK_VO(self):
+        assert self.hparams.nheads == 1
+        return self.extract_fullrank_attn_weights(self.model.layers[0].self_attn)
+
+
+class PerfectSoftmaxAttention(LitSoftmaxAttention, PerfectTraining):
+    def get_QK_VO(self):
+        return self.model.assemble_QK(0), self.model.assemble_VO(0)
 
     def on_train_epoch_end(self):
-        QK_scale, QK_diag_error, QK_off_diag_error = self.compare_to_identity(self.model.assemble_QK(0))
-        VO_scale, VO_diag_error, VO_off_diag_error = self.compare_to_identity(self.model.assemble_VO(0))
-        self.log("QK_scale", QK_scale, logger=True, sync_dist=True)
-        self.log("QK_diag_error", QK_diag_error, logger=True, sync_dist=True)
-        self.log("QK_off_diag_error", QK_off_diag_error, logger=True, sync_dist=True)
-        self.log("VO_scale", VO_scale, logger=True, sync_dist=True)
-        self.log("VO_diag_error", VO_diag_error, logger=True, sync_dist=True)
-        self.log("VO_off_diag_error", VO_off_diag_error, logger=True, sync_dist=True)
+        super().on_train_epoch_end()
+        self.log_perfection()
 
 
 class MyLightningCLI(LightningCLI):
@@ -136,7 +154,7 @@ class MyLightningCLI(LightningCLI):
 
 def main(args: ArgsType = None):
     cli = MyLightningCLI(
-        EncoderRegression,  # LitSoftmaxAttention
+        PerfectEncoderRegression,  # LitSoftmaxAttention
         NearestPointDataModule,
         trainer_defaults=dict(
             callbacks=[
