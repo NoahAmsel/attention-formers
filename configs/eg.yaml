@@ -1,7 +1,7 @@
 experiment_name: tues_night_big_sweep
 trainer:
-  limit_train_batches: 200
-  max_epochs: 200
+  limit_train_batches: 100
+  max_epochs: 100
   logger:
     - class_path: lightning.pytorch.loggers.CSVLogger
       init_args:
