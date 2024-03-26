@@ -19,7 +19,10 @@ v_run=True
 python slurm.py configs/slurm_config.yaml configs/eg.yaml --grid_path=configs/sweep.yaml > slurm/march24_cosine_sweep.slurm
 ```
 
+On hyperparam selection, David sent this: https://arxiv.org/abs/2309.14322
+
 ### TODO
+- CSV log folder should be experiment_name/sweep_id/job_id so that we can run multiple sweeps as part of the same experiment. if we see that some died or we need to add a few extra
 - understand if/why it started using DPP. make sure this is being done properly. read tutorial, make sure the seeds are being set correctly
 - turn on batch size finder!
 - try sweep with weight decay and with 1e-4
@@ -29,7 +32,3 @@ python slurm.py configs/slurm_config.yaml configs/eg.yaml --grid_path=configs/sw
     - each encoder block has layer norm. how does this affect our problem?
     - https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#transformerencoder
 - use wandb?
-
-### done
-TODO: match "version" of csv logger with job_id. since right now things don't match up
-TODO: slurm logs should be in a folder named sweep_id

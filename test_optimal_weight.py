@@ -89,6 +89,15 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     df = pd.read_csv("results/weighted_results_sweep.csv")
+    #### these files come from older sweeps and used larger numbers of heads
+    df10 = pd.read_csv("results/weighted_results_d=10_H=65536.csv")
+    df10["dim"] = 10
+    df30 = pd.read_csv("results/weighted_results_d=30_H=65536.csv")
+    df30["dim"] = 30
+    df60 = pd.read_csv("results/weighted_results_d=60_H=16384.csv")
+    df60["dim"] = 60
+    df = pd.concat([df, df10, df30, df60], ignore_index=True)
+    ####
     # curves = df.groupby(["dim", "H"])["Squared Error"].min()
     p = sns.lineplot(data=df, x="H", hue="dim", y="Squared Error", errorbar=("pi", 100))
     plt.xscale('log')
@@ -96,6 +105,7 @@ if __name__ == "__main__":
     plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b")
     plt.xlabel("H")
     plt.ylabel("MSE")
+    plt.savefig("results/optimal_weight.png", dpi=500)
 
 
 if __name__ == "__main__":
