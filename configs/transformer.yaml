@@ -1,4 +1,4 @@
-experiment_name: encoder_15_march25
+experiment_name: encoder_64_march26
 trainer:
   limit_train_batches: 100
   max_epochs: 200
@@ -13,8 +13,8 @@ model:
 data:
   batch_size: 4096  # this is rated up to dim=16, num_points=2 num_queries=-1
   dataset_class: task.NearestPointDataset
-  dim: 16
-  num_points: 3
+  dim: 64
+  # num_points: 8
   num_queries: -1
   num_workers: 15
 optimizer:

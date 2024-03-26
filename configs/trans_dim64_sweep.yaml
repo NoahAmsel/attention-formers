@@ -1,0 +1,20 @@
+model.nheads:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  - 64
+
+model.num_layers:
+  - 1
+  - 2
+  - 3
+
+data.num_points:
+  - 6
+  - 12
+
+optimizer.lr:
+  - 0.01

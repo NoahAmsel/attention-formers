@@ -23,6 +23,7 @@ On hyperparam selection, David sent this: https://arxiv.org/abs/2309.14322
 
 ### TODO
 - CSV log folder should be experiment_name/sweep_id/job_id so that we can run multiple sweeps as part of the same experiment. if we see that some died or we need to add a few extra
+    - this also protects us from accidentally overwriting csv logs if we use the same experiment name twice
 - understand if/why it started using DPP. make sure this is being done properly. read tutorial, make sure the seeds are being set correctly
 - turn on batch size finder!
 - try sweep with weight decay and with 1e-4

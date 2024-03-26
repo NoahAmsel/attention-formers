@@ -70,16 +70,24 @@ def experiment_analysis(csv_logs_path):
 
 
 if __name__ == "__main__":
-    df = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_15_march25")
-    df2 = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_15_march25_part2")
-    df = pd.concat([df, df2], ignore_index=True)
-    df.to_csv("results/encoder_15_march25.csv")
-    p = sns.lineplot(data=df, x="nheads", y="loss", hue="num_layers", errorbar=("pi", 100))
-    plt.xscale('log')
+    # df = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_15_march25")
+    # df2 = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_15_march25_part2")
+    # df = pd.concat([df, df2], ignore_index=True)
+    # df.to_csv("results/encoder_15_march25.csv")
+    df = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_64_march26")
+    df.to_csv("results/encoder_64_march26.csv")
+    df["rank"] = df["dim"] // df["nheads"]
+    p = sns.lineplot(data=df, x="rank", y="loss", style="num_points", hue="num_layers", errorbar=("pi", 100), marker="o")
+    # plt.xscale('log')
+    plt.title("Standard Encoder: rank=dim/nheads\ndim=64, MLP width=2048")
+    plt.savefig("results/encoder_64_march26.png", dpi=500)
+
 
     # min df
+    # TODO: this is only relevant when we have multiple equivalent runs per (nheads, num_layers) pair
+    # for encoder_64_march26 this compares different num_points. fix it!
     min_df = df.groupby(["nheads", "num_layers"])["loss"].min().reset_index()
-    p = sns.lineplot(data=min_df, x="nheads", y="loss", hue="num_layers")
+    p = sns.lineplot(data=min_df, x="nheads", y="loss", hue="num_layers", marker="o")
     plt.xscale('log')
     plt.title("Standard Encoder: rank=dim/nheads\ndim=16, MLP width=2048, N=3")
     plt.savefig("results/encoder_15_march25.png", dpi=500)
