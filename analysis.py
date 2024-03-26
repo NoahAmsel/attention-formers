@@ -37,3 +37,29 @@ if __name__ == "__main__":
     plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b")
     plt.xlabel("H")
     plt.ylabel("MSE")
+
+
+def experiment_analysis(csv_logs_path):
+    run_folders = Path(csv_logs_path).glob('**/version_*')
+    run_data = []
+    for run_folder in run_folders:
+        try:
+            metrics = pd.read_csv(Path(run_folder, "metrics.csv"))
+            config = oc.load(Path(run_folder, "config.yaml"))
+            run_data.append(dict(
+                loss=metrics.train_loss.min(),
+                lr=config.optimizer.lr,
+                weight_decay=config.optimizer.weight_decay,
+                nheads=config.model.nheads,
+                dim=config.data.dim,
+                num_points=config.data.num_points,
+                num_layers=config.model.num_layers,
+                dim_feedforward=config.model.dim_feedforward
+            ))
+        except:
+            pass
+    return pd.DataFrame(run_data)
+
+
+if __name__ == "__main__":
+    df = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_15_march25")

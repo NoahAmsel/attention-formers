@@ -1,0 +1,19 @@
+model.nheads:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+
+model.num_layers:
+  - 1
+  - 2
+  - 3
+
+optimizer.lr:
+  - 0.01
+  - 0.001
+
+optimizer.weight_decay:
+  - 0
+  - 0.1

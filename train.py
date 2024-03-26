@@ -154,7 +154,7 @@ class MyLightningCLI(LightningCLI):
 
 def main(args: ArgsType = None):
     cli = MyLightningCLI(
-        PerfectEncoderRegression,  # LitSoftmaxAttention
+        EncoderRegression,  # LitSoftmaxAttention
         NearestPointDataModule,
         trainer_defaults=dict(
             callbacks=[
