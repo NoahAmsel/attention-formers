@@ -31,7 +31,15 @@ def run_job(*config_paths, grid_path=None, sweep_id=0, job_id=0):
         overrides = read_grid(grid_path)[job_id - 1]
 
     sys.argv = [sys.argv[0]]
-    main(["fit"] + [f"--config={path}" for path in config_paths] + [f"--trainer.logger.init_args.version={job_id}"] + [f"--{k}={v}" for k, v in overrides.items()])
+    main(
+        ["fit"]
+        + [f"--config={path}" for path in config_paths]
+        + [
+            f"--trainer.logger.init_args.name={config.experiment_name}/{sweep_id}",
+            f"--trainer.logger.init_args.version={job_id}",
+        ]
+        + [f"--{k}={v}" for k, v in overrides.items()]
+    )
 
 
 def generate_slurm_file(slurm_config, *config_paths, grid_path=None):

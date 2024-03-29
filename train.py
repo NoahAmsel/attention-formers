@@ -6,7 +6,7 @@ from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, Lea
 from lightning.pytorch.cli import ArgsType, LightningCLI
 from lightning.pytorch.loggers import CSVLogger, WandbLogger
 from lightning.pytorch.strategies import SingleDeviceStrategy
-from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+from cosine_annealing import LinearWarmupCosineAnnealingLR
 import torch
 
 from models import SoftMultiheadAttention
@@ -131,10 +131,6 @@ class MyLightningCLI(LightningCLI):
         parser.add_optimizer_args(torch.optim.AdamW)
 
         parser.add_argument("--experiment_name", default="lightning_logs")
-        # TODO: In future, instead of linking these deterministically, just
-        # use variable interpolation in the default config file
-        # this will also avoid ambiguity in the next line if there are more than one logger
-        parser.link_arguments("experiment_name", "trainer.logger.init_args.name")
 
         # TODO: try plain cosine annealing
         parser.add_lr_scheduler_args(LinearWarmupCosineAnnealingLR)
@@ -165,7 +161,9 @@ def main(args: ArgsType = None):
                 ModelCheckpoint(monitor="train_loss", save_last=True),
             ],
         ),
-        args=args
+        seed_everything_default=613,
+        parser_kwargs={"parser_mode": "omegaconf"},
+        args=args,
     )
 
 
