@@ -22,8 +22,8 @@ python slurm.py configs/slurm_config.yaml configs/eg.yaml --grid_path=configs/sw
 On hyperparam selection, David sent this: https://arxiv.org/abs/2309.14322
 
 ### TODO
-- CSV log folder should be experiment_name/sweep_id/job_id so that we can run multiple sweeps as part of the same experiment. if we see that some died or we need to add a few extra
-    - this also protects us from accidentally overwriting csv logs if we use the same experiment name twice
+- double check that the dataset isn't being "reset" at the start of each epoch. we want to double check that we're never reusing examples
+- maybe think it started using data parallelism because my slurm jobs got assigned the more nodes. should I now reduce the number of nodes so it WON"T use DPP?
 - understand if/why it started using DPP. make sure this is being done properly. read tutorial, make sure the seeds are being set correctly
 - turn on batch size finder!
 - try sweep with weight decay and with 1e-4
@@ -33,3 +33,7 @@ On hyperparam selection, David sent this: https://arxiv.org/abs/2309.14322
     - each encoder block has layer norm. how does this affect our problem?
     - https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#transformerencoder
 - use wandb?
+
+### Resolved (I think)
+- CSV log folder should be experiment_name/sweep_id/job_id so that we can run multiple sweeps as part of the same experiment. if we see that some died or we need to add a few extra
+    - this also protects us from accidentally overwriting csv logs if we use the same experiment name twice

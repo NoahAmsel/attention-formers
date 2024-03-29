@@ -85,7 +85,12 @@ class NearestPointDataModule(L.LightningDataModule):
         )
 
     def dataloader(self):
-        return torch.utils.data.DataLoader(self.dataset, batch_size=self.hparams.batch_size, num_workers=self.hparams.num_workers)
+        return torch.utils.data.DataLoader(
+            self.dataset,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            pin_memory=True
+        )
 
     def train_dataloader(self): return self.dataloader()
 
@@ -103,7 +108,7 @@ class NearestPointDataModule(L.LightningDataModule):
 
 def dataset(dataset_name: str, dim: int, num_points: int, num_queries: int, batch_size: int, num_workers: int = 0, seed:int = None, device_name:str = None):
     name2task = {"unif": NearestPointDataset, "ortho": NearestPointDatasetOrthogonal, "doubled": NearestPointDatasetDoubled}
-    return NearestPointDataModule(
+    module = NearestPointDataModule(
         dataset_class=name2task[dataset_name],
         dim=dim,
         num_points=num_points,
@@ -112,4 +117,7 @@ def dataset(dataset_name: str, dim: int, num_points: int, num_queries: int, batc
         num_workers=num_workers,
         seed=seed,
         device_name=device_name
-    ).dataloader()
+    )
+    module.prepare_data()
+    module.setup("fit")
+    return module.dataloader()
