@@ -10,11 +10,14 @@ model.nheads:
 model.num_layers:
   - 1
   - 2
-  - 3
+  - 4
+  - 8
 
 data.num_points:
-  - 6
-  - 12
+  - 4
+  - 16
+  - 64
+  - 256
 
 optimizer.lr:
   - 0.01

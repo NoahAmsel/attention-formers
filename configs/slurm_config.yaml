@@ -7,7 +7,8 @@ open_mode: append
 output: /scratch/nia4240/attention-scratch/slurm_logs/%A/%A_%a.out
 error: /scratch/nia4240/attention-scratch/slurm_logs/%A/%A_%a.err
 # must be HH:MM:SS. Not 1:00:00!!
-time: 01:00:00
+time: 02:00:00
 mem: 32G
-cpus_per_task: 16  # ${num_workers}
+# below will affect which nodes I get assigned... probably this is what leads to data parallelism, etc.
+cpus_per_task: 8  # ${num_workers}
 gpus_per_node: 1
