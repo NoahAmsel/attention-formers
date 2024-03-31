@@ -1,4 +1,4 @@
-experiment_name: encoder_64_march26
+experiment_name: encoder_64_extra_march31
 trainer:
   limit_train_batches: 100
   max_epochs: 200
@@ -6,17 +6,21 @@ trainer:
     - class_path: lightning.pytorch.loggers.CSVLogger
       init_args:
         save_dir: "/scratch/nia4240/attention-scratch/csv_logs"
+  strategy:
+    class_path: lightning.pytorch.strategies.SingleDeviceStrategy
+    init_args:
+      device: 'cuda:0'
 model:
   # nheads: 1
   dim_feedforward: 2048
   # num_layers: 1
 data:
-  batch_size: 4096  # this is rated up to dim=16, num_points=2 num_queries=-1
+  batch_size: 1024  # this is rated up to dim=16, num_points=2 num_queries=-1
   dataset_class: task.NearestPointDataset
   dim: 64
-  # num_points: 8
+  # num_points: 4
   num_queries: -1
-  num_workers: 15
+  num_workers: 7
 optimizer:
   # lr: 0.01
   betas:
