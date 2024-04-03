@@ -11,8 +11,11 @@ from tqdm import tqdm
 from models import OptimallyWeightedRandom
 from task import NearestPointDatasetOrthogonal
 from test import test_main
-from test_cheating import slope
 from theory_experiments.verify_joan import GegenbauerTransform
+
+
+def slope(X, Y):
+    return ((X*Y).mean() - X.mean()*Y.mean()) / ((X**2).mean() - (X.mean())**2)
 
 
 def num_harmonics(ambient_dim, level):
