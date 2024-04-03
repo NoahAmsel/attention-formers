@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from math import sqrt
 
+import numpy as np
 import torch
 import scipy.linalg
 
@@ -126,21 +127,28 @@ class OptimallyWeightedRandom(HardMultiheadAttention):
             b = self.head_vs_target_2D(self.Q[:, 0, :].T, self.K[:, 0, :].T)
         else:
             b = self.approx_head_vs_target(self.Q[:, 0, :].T, self.K[:, 0, :].T, num_gegenbauer_terms)
-        C = self.head_vs_head(self.Q[:, 0, :].T, self.K[:, 0, :].T)
         if scipy_solver:
-            C = C.numpy(force=True)
+            QQ = self.Q.numpy(force=True)
+            KK = self.K.numpy(force=True)
+            # Construct C on the CPU, which probably has more memory
+            C = self.head_vs_head(QQ[:, 0, :].T, KK[:, 0, :].T)
             b = b.numpy(force=True)
             a = scipy.linalg.solve(C, b, assume_a='pos')
+            self.expected_error = float(1 - 2 * (b @ a) + a @ (C @ a))
             a = torch.from_numpy(a).to(device)
         else:
+            C = self.head_vs_head(self.Q[:, 0, :].T, self.K[:, 0, :].T)
             a = torch.linalg.solve(C, b)
+            self.expected_error = float(1 - 2 * (b @ a) + a @ (C @ a))
         self.VO.data = torch.eye(dim, device=device, dtype=dtype).expand(nheads, dim, dim) * a.reshape(-1, 1, 1)
 
     @staticmethod
     def head_vs_head(Qs, Ks):
         def clip_asin(x):
-            return torch.arcsin(torch.clip(x, -1, 1))
-
+            if isinstance(x, np.ndarray):
+                return np.arcsin(np.clip(x, -1, 1))
+            else:
+                return torch.arcsin(torch.clip(x, -1, 1))
         return (1/2) + (2 / torch.pi**2) * clip_asin(Qs.T @ Qs) * clip_asin(Ks.T @ Ks)
 
     @staticmethod

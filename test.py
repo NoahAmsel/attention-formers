@@ -23,7 +23,7 @@ class MyTestCLI(LightningCLI):
         # TODO: something to make it easier to configure batch size separately from limit_test_batches
 
 
-def main(args: ArgsType = None):
+def test_main(args: ArgsType = None):
     cli = MyTestCLI(
         LitSequenceRegression,
         NearestPointDataModule,
@@ -38,14 +38,14 @@ def main(args: ArgsType = None):
 
 
 if __name__ == "__main__":
-    main()
+    test_main()
 
     # Example command line call:
     # python new_test.py --model.model=ZeroModel --data.dataset_class=task.NearestPointDatasetOrthogonal --data.dim=16 --data.num_points=2 --data.num_queries=1 --data.batch_size=512 --data.num_workers=3 --trainer.limit_test_batches=32
 
     # Alternative ways to call main:
 
-    # main({
+    # test_main({
     #     "model.model": "ZeroModel",
     #     "data.dataset_class": NearestPointDatasetOrthogonal,
     #     "data.dim": 16,
@@ -56,8 +56,8 @@ if __name__ == "__main__":
     #     "trainer.limit_test_batches": 32
     # })
 
-    # main(dict(
-    #     # model=dict(model=dict(class_path="OptimallyWeightedRandom", init_args=dict(nheads=32, num_gegenbauer_terms=50, scipy_solver=True))),
+    # test_main(dict(
+    #     # model=dict(model=dict(class_path="OptimallyWeightedRandom", init_args=dict(nheads=int(2**10), num_gegenbauer_terms=30, scipy_solver=True))),
     #     # model=dict(model=dict(class_path="RandomQKEqual", init_args=dict(rank=1, nheads=128))),
     #     # model=dict(model=dict(class_path="EqualSpacing2D", init_args=dict(nheads=128))),
     #     model=dict(model="PerfectFullRank"),

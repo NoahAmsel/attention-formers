@@ -3,16 +3,17 @@ from math import comb
 
 import matplotlib.pyplot as plt
 import numpy as np
-from omegaconf import OmegaConf as oc
 import pandas as pd
 import seaborn as sns
 import torch
 from tqdm import tqdm
 
 from models import OptimallyWeightedRandom
-from task import dataset
-from test_cheating import model_mse, slope
+from task import NearestPointDatasetOrthogonal
+from test import test_main
+from test_cheating import slope
 from theory_experiments.verify_joan import GegenbauerTransform
+
 
 def num_harmonics(ambient_dim, level):
     dim = ambient_dim - 1
@@ -53,37 +54,42 @@ def plot_H(curve, dim):
 
 
 if __name__ == "__main__":
-    config = oc.create(dict(
-        num_points=2,
-        num_queries=1,
-        task="ortho",
-        scale_batch=False,
-        # I set this to avoid memory overflow when num heads > 2^15,
-        # but it makes inefficient use of GPU. 
-        # TODO: dynamically adjust batch size to fit model size
-        batch_size=512,
-        num_workers=0,  # this is necessary since we want to generate the dataset directly on the GPU, not in a CPU subprocess
-    ))
-    config.num_test_batches = 16_384 // config.batch_size
+    config = dict(
+        model=dict(
+            model=dict(
+                class_path="OptimallyWeightedRandom",
+                init_args=dict(
+                    num_gegenbauer_terms=30, scipy_solver=True,
+                    # nheads=int(2**16), seed=0
+                ),
+            )
+        ),
+        data=dict(
+            dataset_class=NearestPointDatasetOrthogonal,
+            # dim=16,
+            num_points=2,
+            num_queries=1,
+            batch_size=512,
+            num_workers=3,
+        ),
+        trainer=dict(limit_test_batches=32),
+    )
+    # H = 2^16 took 7 mins with scipy_solve=True. (Memory problems with scipy_solve=False). beyond 2^16, who knows
     Hs = reversed([2**i for i in range(17)])
     dims = reversed([2**i for i in range(2, 7)])
     assert torch.cuda.is_available()
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     results = []
     for seed, dim, H in tqdm(list(product(range(10), dims, Hs))):
-        with torch.no_grad():
-            model = OptimallyWeightedRandom(dim, H, num_gegenbauer_terms=40, scipy_solver=True, seed=int(2e7 + seed), device=device)
-            # since dataset is an iterable, must recreate it each inner
-            # iteration to reset it
-            data = dataset(oc.merge(config, {"dim": dim, "seed": int(1e7+seed)}), device=device)
-            squared_error = model_mse(model, data, config.num_test_batches)
-        # squared_error = float(test_model(model, oc.merge(config, {"seed": int(1e7+seed)})))
+        config["model"]["model"]["init_args"]["seed"] = seed
+        config["data"]["dim"] = dim
+        config["model"]["model"]["init_args"]["nheads"] = H
+        squared_error = test_main(config)
+        result = dict(seed=seed, dim=dim, H=H)
+        print(result)
         results.append((dim, H, seed, squared_error))
-        with open("/home/nia4240/attention-formers/results/running_sweep_results.csv", "a") as f:
-            print(dim, H, seed, squared_error, sep=",", file=f)
 
-    df = pd.DataFrame(results, columns=["dim", "H", "seed", "Squared Error"])
-    filename = f"/home/nia4240/attention-formers/results/weighted_results_sweep.csv"
+    df = pd.DataFrame(results)
+    filename = f"/home/nia4240/attention-formers/results/weighted_results_sweep_april3.csv"
     df.to_csv(filename, index=False)
 
 
@@ -107,6 +113,12 @@ if __name__ == "__main__":
     plt.ylabel("MSE")
     plt.savefig("results/optimal_weight.png", dpi=500)
 
+    dfdfdf = df.loc[df.dim == 10]
+    dfdfdf["?"] = np.log(df.dim)/np.log(df.H)
+    # dfdfdf["??"] = 1/np.sqrt(df.H)
+    plt.plot(dfdfdf.H, dfdfdf["Squared Error"], dfdfdf.H, dfdfdf["?"], marker="o")
+    plt.xscale('log')
+    plt.plot(dfdfdf.H, dfdfdf["Squared Error"] / dfdfdf["?"])
 
 if __name__ == "__main__":
     df = pd.read_csv("results/weighted_results_sweep.csv")
