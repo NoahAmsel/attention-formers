@@ -37,7 +37,7 @@ On hyperparam selection, David sent this: https://arxiv.org/abs/2309.14322
     - but really the worker time depends only on number of points. same setting but raising number of points to 256
         - 3 workers took 4 min 10 sec to do only 3 epochs
         - 15 workesr took about the same
-
+UPSHOT: we probably don't need 15 workers, 3 seems like enough. but we can always request the extra workers and then turn on single device strategy
 
 - running `lscpu | grep -E '^Thread|^Core|^Socket|^CPU\('` yielded
 ```

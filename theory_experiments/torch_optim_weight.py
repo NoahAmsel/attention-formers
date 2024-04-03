@@ -43,12 +43,22 @@ class COperator:
         assert Qs.shape == Ks.shape
         self.Qs = Qs
         self.Ks = Ks
-        max_block = 2**29
-        if self.H > (max_block):
-            self.block_size = 1
+        # for 128 GB, block = 2^30 suffices
+        max_block = 2**28
+        if self.H ** 2 <= max_block:
+            self.cache_C = self.synthesize_C(
+                self.Qs.T @ self.Qs,
+                self.Ks.T @ self.Ks
+            )
         else:
-            self.block_size = min(max_block // self.H, self.H)
-        self.num_blocks = self.H // self.block_size
+            print("C cannot fit in max_block")
+            self.cache_C = None
+            if self.H > max_block:
+                self.block_size = 1
+            else:
+                self.block_size = min(max_block // self.H, self.H)
+            self.num_blocks = self.H // self.block_size
+            assert self.num_blocks * self.block_size == self.H
 
     @property
     def dim(self):
@@ -70,6 +80,9 @@ class COperator:
         )
 
     def vector_mult(self, x):
+        if self.cache_C is not None:
+            return self.cache_C @ x
+
         result = torch.empty_like(x)
         for block_ix in range(self.num_blocks):
             Ci = self.synthesize_C(
@@ -97,12 +110,14 @@ def construction_error(dim, H, rtol=1e-3, dtype=None, device=None):
     # C = C_mat(Qs, Ks)
     C = COperator(Qs, Ks)
     # a = scipy.linalg.solve(C, b, assume_a='pos')
-    a = CG(C, rtol=rtol, verbose=True).forward(b.reshape(1, -1, 1))[0, :, 0]
-    return float(error(a, b, C))
+    a = CG(C, rtol=rtol, maxiter=100, verbose=True).forward(b.reshape(1, -1, 1))[0, :, 0]
+    e = float(error(a, b, C))
+    print(e)
+    return e
 
 
 if __name__ == "__main__":
-    assert torch.cuda.is_available()
+    # assert torch.cuda.is_available()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dim = 8  # MUST BE POWER OF 2
     Hs = torch.tensor([2**i for i in range(18)])
