@@ -1,74 +1,75 @@
-import torch
 import lightning as L
+from lightning.pytorch.cli import ArgsType, LightningCLI
+import torch
 
-from models import HardMultiheadAttention, OptimallyWeightedRandom
-from task import dataset
+from task import NearestPointDataModule, NearestPointDatasetOrthogonal
 from train import LitSequenceRegression
 
 
-def test_model(model, num_test_batches, scale_batch=False, **dataset_kwargs):
-    data = dataset(**dataset_kwargs)
-    lit_model = LitSequenceRegression(model, scale_batch=scale_batch)
+def test_model(model_module, data_module, num_test_batches, scale_batch=False):
+    lit_model = LitSequenceRegression(model_module, scale_batch=scale_batch)
     tester = L.Trainer(limit_test_batches=num_test_batches, logger=False)
-    return tester.test(model=lit_model, dataloaders=data)
+    return tester.test(model=lit_model, dataloaders=data_module)
 
 
 class ZeroModel(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        # Lighting will automatically move this parameter to the right device
-        # Then when forward creates a tensor, it knows which device to put it on
-        self.device_dummy = torch.nn.Parameter(torch.empty(0))
-
     def forward(self, X, Y):
-        return torch.zeros(Y.shape, device=self.device_dummy.device)
+        return torch.zeros_like(Y)
 
 
-def test_zero_construction(**config):
-    """Useful for testing that the loss is calculated correctly.
-    Loss should always be 1.
-    """
-    test_model(ZeroModel(), **config)
+class MyTestCLI(LightningCLI):
+    def add_arguments_to_parser(self, parser):
+        parser.link_arguments("data.dim", "model.model.init_args.dim")
+        # TODO: something to make it easier to configure batch size separately from limit_test_batches
 
 
-def test_perfect_construction(**config):
-    model = HardMultiheadAttention.perfect_construction(dim=config.dim)
-    test_model(model, **config)
-
-
-def test_random_construction(**config):
-    model = HardMultiheadAttention.random_construction(
-        config["dim"], config["rank"], config["nheads"]
+def main(args: ArgsType = None):
+    cli = MyTestCLI(
+        LitSequenceRegression,
+        NearestPointDataModule,
+        save_config_callback=None,
+        trainer_defaults=dict(logger=False),
+        seed_everything_default=613,
+        parser_kwargs={"parser_mode": "omegaconf"},
+        args=args,
+        run=False,
     )
-    test_model(model, **config)
-
-
-def test_spaced_construction(**config):
-    assert config["dim"] == 2
-    assert config["rank"] == 1
-    model = HardMultiheadAttention.spaced_out_construction(config["nheads"])
-    test_model(model, **config)
-
-
-def test_optimally_weighted(**config):
-    assert config["rank"] == 1
-    model = OptimallyWeightedRandom(config["dim"], config["nheads"], config["num_gegenbauer_terms"])
-    test_model(model, **config)
+    return cli.trainer.test(cli.model, cli.datamodule)
 
 
 if __name__ == "__main__":
-    test_optimally_weighted(
-        dim=2,
-        rank=1,
-        nheads=2**10,
-        num_points=2,
-        num_queries=4,
-        dataset_name="ortho",
-        scale_batch=False,
-        batch_size=128,
-        num_test_batches=256,
-        num_workers=4,
-        num_gegenbauer_terms=100,
-    )
-    # Fire(test_random_construction)
-    # TODO: make separate command line endpoints for test random, test perfect, test zero, etc
+    main()
+
+    # Example command line call:
+    # python new_test.py --model.model=ZeroModel --data.dataset_class=task.NearestPointDatasetOrthogonal --data.dim=16 --data.num_points=2 --data.num_queries=1 --data.batch_size=512 --data.num_workers=3 --trainer.limit_test_batches=32
+
+    # Alternative ways to call main:
+
+    # main({
+    #     "model.model": "ZeroModel",
+    #     "data.dataset_class": NearestPointDatasetOrthogonal,
+    #     "data.dim": 16,
+    #     "data.num_points": 2,
+    #     "data.num_queries": 1,
+    #     "data.batch_size": 512,
+    #     "data.num_workers": 3,
+    #     "trainer.limit_test_batches": 32
+    # })
+
+    # main(dict(
+    #     # model=dict(model=dict(class_path="OptimallyWeightedRandom", init_args=dict(nheads=32, num_gegenbauer_terms=50, scipy_solver=True))),
+    #     # model=dict(model=dict(class_path="RandomQKEqual", init_args=dict(rank=1, nheads=128))),
+    #     # model=dict(model=dict(class_path="EqualSpacing2D", init_args=dict(nheads=128))),
+    #     model=dict(model="PerfectFullRank"),
+    #     data=dict(
+    #         dataset_class=NearestPointDatasetOrthogonal,
+    #         dim=16,
+    #         num_points=2,
+    #         num_queries=1,
+    #         batch_size=512,
+    #         num_workers=3
+    #     ),
+    #     trainer=dict(
+    #         limit_test_batches=32
+    #     ),
+    # ))

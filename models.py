@@ -56,43 +56,6 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
     def forward(self, X, Y):
         raise NotImplementedError
 
-    @classmethod
-    def perfect_construction(cls, dim, temperature=1, device=None, dtype=None):
-        model = cls(dim=dim, rank=dim, nheads=1, device=device, dtype=dtype)
-        model.Q.data[0, :, :] = temperature * torch.eye(model.dim, device=device, dtype=dtype)
-        model.K.data[0, :, :] = torch.eye(model.dim, device=device, dtype=dtype)
-        model.VO.data[0, :, :] = torch.eye(model.dim, device=device, dtype=dtype)
-        return model
-
-    @classmethod
-    def random_construction(cls, dim, rank, nheads, temperature=1, device=None, dtype=None):
-        """ Sets q = k
-        Sets the columns of q to be an orthonormal basis for a random subspace of dimension rank
-        Sets VO so to be identity, scaled so that the total function is an average over the heads
-        """
-        model = cls(dim=dim, rank=rank, nheads=nheads, device=device, dtype=dtype)
-        # TODO should really make temperature infinity but whatever
-        lr = torch.eye(rank, dim)
-        for head in range(nheads):
-            rotation, _ = torch.linalg.qr(torch.randn((dim, dim)))
-            rotated_lr = lr @ rotation
-            model.Q.data[head, :, :] = temperature * rotated_lr
-            model.K.data[head, :, :] = rotated_lr
-            model.VO.data[head, :, :] = torch.eye(dim, device=device, dtype=dtype) / nheads
-        return model
-    
-    @classmethod
-    def spaced_out_construction(cls, nheads, temperature=1, device=None, dtype=None):
-        model = cls(dim=2, rank=1, nheads=nheads, device=device, dtype=dtype)
-        angles = torch.linspace(0, torch.pi * (1 - 1/nheads), nheads, device=device, dtype=dtype)
-        model.Q.data[:, 0, 0] = torch.cos(angles)
-        model.Q.data[:, 0, 1] = torch.sin(angles)
-        model.K.data = model.Q.data
-        model.Q.data *= temperature
-        for head in range(nheads):
-            model.VO.data[head, :, :] = torch.eye(2, device=device, dtype=dtype) / nheads
-        return model
-
 
 class SoftMultiheadAttention(AbstractMultiheadAttention):
     def forward(self, X, Y):
@@ -113,6 +76,43 @@ class HardMultiheadAttention(AbstractMultiheadAttention):
         # attn_matrix is batch_size, num queries, num heads, num points
         # X is batch_size, dim, num points
         return torch.einsum("bqhk,bdk,hde->beq", attn_matrix, X, self.VO)
+
+
+class PerfectFullRank(HardMultiheadAttention):
+    def __init__(self, dim, temperature=1, device=None, dtype=None):
+        super().__init__(dim=dim, rank=dim, nheads=1, device=device, dtype=dtype)
+        self.Q.data[0, :, :] = temperature * torch.eye(self.dim, device=device, dtype=dtype)
+        self.K.data[0, :, :] = torch.eye(self.dim, device=device, dtype=dtype)
+        self.VO.data[0, :, :] = torch.eye(self.dim, device=device, dtype=dtype)
+
+
+class RandomQKEqual(HardMultiheadAttention):
+    def __init__(self, dim, rank, nheads, temperature=1, device=None, dtype=None):
+        """ Sets q = k
+        Sets the columns of q to be an orthonormal basis for a random subspace of dimension rank
+        Sets VO so to be identity, scaled so that the total function is an average over the heads
+        """
+        super().__init__(dim=dim, rank=rank, nheads=nheads, device=device, dtype=dtype)
+        # TODO should really make temperature infinity but whatever
+        lr = torch.eye(rank, dim)
+        for head in range(nheads):
+            rotation, _ = torch.linalg.qr(torch.randn((dim, dim)))
+            rotated_lr = lr @ rotation
+            self.Q.data[head, :, :] = temperature * rotated_lr
+            self.K.data[head, :, :] = rotated_lr
+            self.VO.data[head, :, :] = torch.eye(dim, device=device, dtype=dtype) / nheads
+
+
+class EqualSpacing2D(HardMultiheadAttention):
+    def __init__(self, nheads, temperature=1, device=None, dtype=None):
+        super().__init__(dim=2, rank=1, nheads=nheads, device=device, dtype=dtype)
+        angles = torch.linspace(0, torch.pi * (1 - 1/nheads), nheads, device=device, dtype=dtype)
+        self.Q.data[:, 0, 0] = torch.cos(angles)
+        self.Q.data[:, 0, 1] = torch.sin(angles)
+        self.K.data = self.Q.data
+        self.Q.data *= temperature
+        for head in range(nheads):
+            self.VO.data[head, :, :] = torch.eye(2, device=device, dtype=dtype) / nheads
 
 
 class OptimallyWeightedRandom(HardMultiheadAttention):

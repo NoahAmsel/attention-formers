@@ -75,6 +75,20 @@ class NearestPointDataModule(L.LightningDataModule):
         else:
             self.device = torch.device(device_name)
 
+    @classmethod
+    def from_name(cls, dataset_name: str, dim: int, num_points: int, num_queries: int, batch_size: int, num_workers: int = 0, seed: int = None, device_name: str = None):
+        name2task = {"unif": NearestPointDataset, "ortho": NearestPointDatasetOrthogonal, "doubled": NearestPointDatasetDoubled}
+        cls(
+            dataset_class=name2task[dataset_name],
+            dim=dim,
+            num_points=num_points,
+            num_queries=num_queries,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            seed=seed,
+            device_name=device_name
+        )
+
     def setup(self, stage):
         self.dataset = self.hparams.dataset_class(
             dim=self.hparams.dim,
@@ -89,7 +103,7 @@ class NearestPointDataModule(L.LightningDataModule):
             self.dataset,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
-            pin_memory=True
+            pin_memory=((self.device is None) or (self.device.type == "cpu"))
         )
 
     def train_dataloader(self): return self.dataloader()
@@ -106,10 +120,9 @@ class NearestPointDataModule(L.LightningDataModule):
         self.dataset = state_dict["dataset"]
 
 
-def dataset(dataset_name: str, dim: int, num_points: int, num_queries: int, batch_size: int, num_workers: int = 0, seed:int = None, device_name:str = None):
-    name2task = {"unif": NearestPointDataset, "ortho": NearestPointDatasetOrthogonal, "doubled": NearestPointDatasetDoubled}
-    module = NearestPointDataModule(
-        dataset_class=name2task[dataset_name],
+def dataset(dataset_name: str, dim: int, num_points: int, num_queries: int, batch_size: int, num_workers: int = 0, seed: int = None, device_name: str = None):
+    module = NearestPointDataModule.from_name(
+        dataset_name=dataset_name,
         dim=dim,
         num_points=num_points,
         num_queries=num_queries,
