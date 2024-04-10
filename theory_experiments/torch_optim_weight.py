@@ -119,12 +119,18 @@ def construction_error(dim, H, rtol=1e-3, dtype=None, device=None):
 if __name__ == "__main__":
     # assert torch.cuda.is_available()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dim = 8  # MUST BE POWER OF 2
-    Hs = torch.tensor([2**i for i in range(18)])
-    errors = torch.tensor([construction_error(dim, H, device=device, dtype=torch.float64) for H in tqdm(Hs)])
+    dim = 4  # MUST BE POWER OF 2
+    Hs = torch.tensor([2**i for i in range(19)])
+    errors = torch.tensor([construction_error(dim, H, rtol=1e-3, device=device, dtype=torch.float64) for H in tqdm(Hs)])
     print(errors)
     plt.plot(Hs, errors)
     plt.xscale("log")
     plt.title(f"Random features: dim={dim}")
     plt.xlabel("Number of Heads")
     plt.ylabel("MSE")
+
+    plt.plot(Hs, 1/errors)
+    plt.xscale("log")
+    plt.title(f"Random features: dim={dim}")
+    plt.xlabel("Number of Heads")
+    plt.ylabel("1 / MSE")
