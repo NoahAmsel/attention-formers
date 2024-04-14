@@ -9,6 +9,7 @@ from lightning.pytorch.strategies import SingleDeviceStrategy
 from cosine_annealing import LinearWarmupCosineAnnealingLR
 import torch
 
+from encoders import Encoder
 from models import SoftMultiheadAttention
 from task import NearestPointDataModule
 
@@ -26,19 +27,17 @@ class SimpleLightningModule(L.LightningModule):
 
 
 class EncoderRegression(SimpleLightningModule):
-    def __init__(self, dim: int, nheads: int, dim_feedforward: int, num_layers: int, bias: bool = True):
+    def __init__(self, dim: int, nheads: int, dim_feedforward: int, num_layers: int, bias: bool = True, positional_dim: int = 0, maxN: int = 0):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
-        layer = torch.nn.TransformerEncoderLayer(d_model=dim, nhead=nheads, dim_feedforward=dim_feedforward, dropout=0, batch_first=True, bias=bias)
-        self.model = torch.nn.TransformerEncoder(layer, num_layers=num_layers, enable_nested_tensor=False)
+        self.model = Encoder(dim=dim, nheads=nheads, dim_feedforward=dim_feedforward, num_layers=num_layers, bias=bias, positional_dim=positional_dim, maxN=maxN)
 
     def loss(self, batch):
         # X has dimensions: (batch size, dim, num points)
         # labels has dimensions: (batch size, dim, num points)
         X, labels = batch
         _, dim, _ = labels.shape
-        # model input and output has shape (batch size, num points, dim) because batch_first=True
-        labels_hat = torch.permute(self.model(torch.permute(X, (0, 2, 1))), (0, 2, 1))
+        labels_hat = self.model(X)
         return torch.nn.functional.mse_loss(labels_hat, labels) * dim
 
 
@@ -128,6 +127,7 @@ class PerfectSoftmaxAttention(LitSoftmaxAttention, PerfectTraining):
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.link_arguments("data.dim", "model.dim")
+        parser.link_arguments("data.num_points", "model.maxN")
         parser.add_optimizer_args(torch.optim.AdamW)
 
         parser.add_argument("--experiment_name", default="lightning_logs")
