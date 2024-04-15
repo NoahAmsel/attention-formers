@@ -15,79 +15,47 @@ def experiment_analysis(csv_logs_path):
             config = oc.load(Path(run_folder, "config.yaml"))
             run_data.append(dict(
                 loss=metrics.train_loss.min(),
-                lr=metrics["lr-AdamW"].max(),
-                rank=config.model.rank,
-                nheads=config.model.nheads,
-                dim=config.data.dim,
-                num_points=config.data.num_points,
-            ))
-        except:
-            pass
-    return pd.DataFrame(run_data)
-
-
-if __name__ == "__main__":
-    df = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/march24_cosine_sweep")
-    df.to_csv("results/march20_big_sweep.csv")
-    df_focus = df[(df.loss < 10) & (df.lr == 0.01)]
-    p = sns.lineplot(data=df_focus, x="nheads", hue="dim", y="loss")
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.ylim((0.1, 1.5))
-    plt.ylabel("MSE")
-
-    min_df = df.groupby(["nheads", "dim"])["loss"].min().reset_index()
-    p = sns.lineplot(data=min_df, x="nheads", hue="dim", y="loss")
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.ylim((0.1, 1.5))
-    plt.title(f"Trained Custom Attention Layer, N=2")
-    plt.xlabel("H")
-    plt.ylabel("MSE")
-    plt.savefig("results/march20_big_sweep", dpi=500)
-
-
-def experiment_analysis(csv_logs_path):
-    run_folders = Path(csv_logs_path).glob('**/version_*')
-    run_data = []
-    for run_folder in run_folders:
-        try:
-            metrics = pd.read_csv(Path(run_folder, "metrics.csv"))
-            config = oc.load(Path(run_folder, "config.yaml"))
-            run_data.append(dict(
-                loss=metrics.train_loss.min(),
                 lr=config.optimizer.lr,
                 weight_decay=config.optimizer.weight_decay,
                 nheads=config.model.nheads,
                 dim=config.data.dim,
                 num_points=config.data.num_points,
                 num_layers=config.model.num_layers,
-                dim_feedforward=config.model.dim_feedforward
+                positional_dim=config.model.positional_dim,
+                dim_feedforward=config.model.dim_feedforward,
+                width_multiplier=config.model.width_multiplier,
+                # rank=config.model.rank,
             ))
         except:
             pass
     return pd.DataFrame(run_data)
 
 
+def get_nonunique(df, col):
+    vals = df[col].unique()
+    assert len(vals) == 1
+    return vals[0]
+
+
 if __name__ == "__main__":
-    # df = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_15_march25")
-    # df2 = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_15_march25_part2")
-    # df = pd.concat([df, df2], ignore_index=True)
-    # df.to_csv("results/encoder_15_march25.csv")
-    df = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/encoder_64_march26")
-    df.to_csv("results/encoder_64_march26.csv")
+    exp_name = "widened_sweep"
+    log_path = f"/scratch/nia4240/attention-scratch/csv_logs/{exp_name}"
+
+    df = experiment_analysis(log_path)
+    variable_cols = list(df.nunique()[lambda x: x > 1].index)
+    print(f"Variable columns:", *variable_cols)
+
     df["rank"] = df["dim"] // df["nheads"]
-    p = sns.lineplot(data=df, x="rank", y="loss", style="num_points", hue="num_layers", errorbar=("pi", 100), marker="o")
-    # plt.xscale('log')
-    plt.title("Standard Encoder: rank=dim/nheads\ndim=64, MLP width=2048")
-    plt.savefig("results/encoder_64_march26.png", dpi=500)
+    df["true num heads"] = df["nheads"] * df["width_multiplier"]
+    # first is x axis, then style, then hue
+    # df = df[(df.rank == 1) & (df.num_layers == 1)]
+    plot_vars = ["true num heads", "rank", "num_layers"]
 
-
-    # min df
-    # TODO: this is only relevant when we have multiple equivalent runs per (nheads, num_layers) pair
-    # for encoder_64_march26 this compares different num_points. fix it!
-    min_df = df.groupby(["nheads", "num_layers"])["loss"].min().reset_index()
-    p = sns.lineplot(data=min_df, x="nheads", y="loss", hue="num_layers", marker="o")
+    df_grouped = df.groupby(plot_vars)["loss"].min().reset_index()
+    p = sns.lineplot(data=df_grouped, x=plot_vars[0], y="loss", style=plot_vars[1], hue=plot_vars[2] if len(plot_vars) > 2 else plot_vars[1], errorbar=("pi", 100), marker="o")
+    plt.xlabel(plot_vars[0])
+    plt.ylabel("MSE")
+    plt.title(f"Standard Encoder: rank=dim/nheads\ndim={get_nonunique(df, 'dim')}, MLP width={get_nonunique(df, 'dim_feedforward')}")
+    plt.ylim([0, 1])
     plt.xscale('log')
-    plt.title("Standard Encoder: rank=dim/nheads\ndim=16, MLP width=2048, N=3")
-    plt.savefig("results/encoder_15_march25.png", dpi=500)
+    # plt.savefig(f"results/{exp_name}.png", dpi=500)
