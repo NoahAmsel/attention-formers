@@ -1,10 +1,11 @@
+# WARNING: this must divide the dim AFTER adding positional_dim
 model.nheads:
   - 1
-  - 2
+  # - 2
   - 4
-  - 8
+  # - 8
   - 16
-  - 32
+  # - 32
   - 64
 
 model.num_layers:
