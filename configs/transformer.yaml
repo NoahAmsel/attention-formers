@@ -11,11 +11,11 @@ trainer:
     init_args:
       device: 'cuda:0'
 model:
-  # nheads:
+  # total_heads:
+  # rank:
   dim_feedforward: 2048
   # num_layers:
   # positional_dim: 
-  # width_multiplier:
 data:
   batch_size: 1024  # this is rated up to dim=16, num_points=2 num_queries=-1
   dataset_class: task.NearestPointDataset

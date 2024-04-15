@@ -7,10 +7,15 @@ from typing import Callable, Optional, Union
 
 
 class WidenedTransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
-    def __init__(self, width_multiplier: int, d_model: int, nhead: int, dim_feedforward: int = 2048, dropout: float = 0.1,
+    def __init__(self, rank: int, total_heads: int, d_model: int, dim_feedforward: int = 2048, dropout: float = 0.1,
                  activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
                  layer_norm_eps: float = 1e-5, batch_first: bool = False, norm_first: bool = False,
                  bias: bool = True, device=None, dtype=None) -> None:
+        nhead = d_model // rank
+        assert nhead * rank == d_model, f"Rank ({rank}) needs to divide dimension ({d_model})"
+        width_multiplier = total_heads // nhead
+        assert nhead * width_multiplier == total_heads, f"Dimension ({d_model}) should divide total number of heads ({total_heads}) times rank ({rank})"
+
         super().__init__(
             d_model=d_model,
             nhead=nhead,
@@ -109,9 +114,9 @@ class WidenedTransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, dim: int, nheads: int, dim_feedforward: int, num_layers: int, width_multiplier: int = 1, bias: bool = True, positional_dim: int = 0, maxN: int = 0):
+    def __init__(self, dim: int, total_heads: int, dim_feedforward: int, num_layers: int, rank: int, bias: bool = True, positional_dim: int = 0, maxN: int = 0):
         super().__init__()
-        layer = WidenedTransformerEncoderLayer(width_multiplier=width_multiplier, d_model=(dim+positional_dim), nhead=nheads, dim_feedforward=dim_feedforward, dropout=0, batch_first=True, bias=bias)
+        layer = WidenedTransformerEncoderLayer(rank=rank, total_heads=total_heads, d_model=(dim+positional_dim), dim_feedforward=dim_feedforward, dropout=0, batch_first=True, bias=bias)
         self.encoder = torch.nn.TransformerEncoder(layer, num_layers=num_layers, enable_nested_tensor=False)
         self.positional_encodings = torch.nn.Parameter(torch.empty(positional_dim, maxN))
         torch.nn.init.uniform_(self.positional_encodings, -1, 1)

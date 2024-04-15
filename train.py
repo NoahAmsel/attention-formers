@@ -27,10 +27,10 @@ class SimpleLightningModule(L.LightningModule):
 
 
 class EncoderRegression(SimpleLightningModule):
-    def __init__(self, dim: int, nheads: int, dim_feedforward: int, num_layers: int, width_multiplier: int = 1, bias: bool = True, positional_dim: int = 0, maxN: int = 0):
+    def __init__(self, dim: int, total_heads: int, dim_feedforward: int, num_layers: int, rank: int, bias: bool = True, positional_dim: int = 0, maxN: int = 0):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
-        self.model = Encoder(dim=dim, nheads=nheads, dim_feedforward=dim_feedforward, num_layers=num_layers, width_multiplier=width_multiplier, bias=bias, positional_dim=positional_dim, maxN=maxN)
+        self.model = Encoder(dim=dim, total_heads=total_heads, dim_feedforward=dim_feedforward, num_layers=num_layers, rank=rank, bias=bias, positional_dim=positional_dim, maxN=maxN)
 
     def loss(self, batch):
         # X has dimensions: (batch size, dim, num points)

@@ -1,9 +1,12 @@
 # WARNING: this must divide the dim AFTER adding positional_dim
-model.nheads:
+model.rank:
   - 1
+  - 2
   - 4
-  - 8
   - 16
+
+model.total_heads:
+
 
 model.num_layers:
   - 1
@@ -13,8 +16,3 @@ model.num_layers:
 model.positional_dim:
   - 0
   - 8
-
-model.width_multiplier:
-  - 1
-  - 8
-  - 64
