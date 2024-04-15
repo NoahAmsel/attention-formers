@@ -1,4 +1,4 @@
-experiment_name: encoder_64_extra_march31
+experiment_name: widened_sweep
 trainer:
   limit_train_batches: 100
   max_epochs: 200
@@ -11,20 +11,22 @@ trainer:
     init_args:
       device: 'cuda:0'
 model:
-  # nheads: 1
+  # nheads:
   dim_feedforward: 2048
-  # num_layers: 1
+  # num_layers:
+  # positional_dim: 
+  # width_multiplier:
 data:
   batch_size: 1024  # this is rated up to dim=16, num_points=2 num_queries=-1
   dataset_class: task.NearestPointDataset
-  dim: 64
-  # num_points: 4
+  dim: 16
+  num_points: 8
   num_queries: -1
   num_workers: 7
 optimizer:
-  # lr: 0.01
+  lr: 0.01
   betas:
     - .9
     - .95
-  # weight_decay: 0
+  weight_decay: 0
 lr_scheduler:

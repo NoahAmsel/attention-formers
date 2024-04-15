@@ -1,0 +1,20 @@
+# WARNING: this must divide the dim AFTER adding positional_dim
+model.nheads:
+  - 1
+  - 4
+  - 8
+  - 16
+
+model.num_layers:
+  - 1
+  - 2
+  - 3
+
+model.positional_dim:
+  - 0
+  - 8
+
+model.width_multiplier:
+  - 1
+  - 8
+  - 64

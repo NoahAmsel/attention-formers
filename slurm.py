@@ -52,8 +52,9 @@ def generate_slurm_file(slurm_config, *config_paths, grid_path=None):
 
     slurm_file = Slurm(**read_configs([slurm_config]), array=f"1-{num_jobs}")
 
+    # TODO: should there be a `srun`  before the singularity command? this seems like good practice but the jobs fail for some reason
     command_string = f"""
-srun singularity exec --nv --overlay /scratch/nia4240/overlay-50G-10M.ext3:ro /scratch/work/public/singularity/cuda11.8.86-cudnn8.7-devel-ubuntu22.04.2.sif /bin/bash -c "
+singularity exec --nv --overlay /scratch/nia4240/overlay-50G-10M.ext3:ro /scratch/work/public/singularity/cuda11.8.86-cudnn8.7-devel-ubuntu22.04.2.sif /bin/bash -c "
 source /ext3/env.sh
 conda activate attention
 python -m fire slurm run_job {" ".join(config_paths)} --grid_path={grid_path} --sweep_id=$SLURM_ARRAY_JOB_ID --job_id=$SLURM_ARRAY_TASK_ID 
