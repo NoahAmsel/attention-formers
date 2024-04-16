@@ -51,7 +51,7 @@ class AbstractMultiheadAttention(torch.nn.Module, ABC):
         # Y is batch_size, dim, num queries
         # self.Q and self.K are each nheads by rank by dim
         # output (attention matrices) is batch_size, num queries, num heads, num keys
-        return torch.einsum("bdq,hrd,hre,bek->bqhk", Y, self.Q, self.K, X) / sqrt(self.dim)
+        return torch.einsum("bdq,hrd,hre,bek->bqhk", Y, self.Q, self.K, X) / sqrt(self.rank)
 
     @abstractmethod
     def forward(self, X, Y):
