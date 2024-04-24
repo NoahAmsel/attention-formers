@@ -6,6 +6,17 @@ from torch import Tensor
 from typing import Callable, Optional, Union
 
 
+class MyNormalize(torch.nn.Module):
+    def __init__(self, dim, scale=1, eps=0, device=None, dtype=None):
+        super().__init__()
+        self.dim = dim
+        self.scale = torch.nn.Parameter(torch.ones(1, device=device, dtype=dtype) * scale)
+        self.eps = eps  # remove me?
+
+    def forward(self, x):
+        return self.scale * torch.nn.functional.normalize(x, dim=self.dim, eps=self.eps)
+
+
 class WidenedTransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
     def __init__(self, width_multiplier: int, d_model: int, nhead: int, dim_feedforward: int = 2048, dropout: float = 0.1,
                  activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
@@ -38,6 +49,9 @@ class WidenedTransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
             )
             for _ in range(width_multiplier)
         ])
+
+        self.norm1 = MyNormalize(dim=2)
+        self.norm2 = MyNormalize(dim=2)
 
     # The TransformerEncoder initializer inspects properties of each layer's self_attn attribute.
     # Expose this so it can still do the job
@@ -101,10 +115,15 @@ class WidenedTransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
                   attn_mask: Optional[Tensor], key_padding_mask: Optional[Tensor], is_causal: bool = False) -> Tensor:
         out = torch.zeros_like(x)
         for sa in self.widened_self_attn:
-            out = out + sa(x, x, x, 
-                           attn_mask=attn_mask,
-                           key_padding_mask=key_padding_mask,
-                           need_weights=False, is_causal=is_causal)[0]
+            out = out + sa(
+                x,
+                x,
+                x,
+                attn_mask=attn_mask,
+                key_padding_mask=key_padding_mask,
+                need_weights=False,
+                is_causal=is_causal,
+            )[0] / len(self.widened_self_attn)
         return self.dropout1(out)
 
 
@@ -125,10 +144,32 @@ class Encoder(torch.nn.Module):
     def forward(self, X):
         # X has dimensions: (batch size, dim, num points)
         batch_size, dim, num_points = X.shape
-        assert num_points <= self.maxN(), f"Number of points in batch {num_points} is larger than the Encoder can handle {self.maxN()}. Try increasing maxN."
         if self.positional_dim() > 0:
+            assert num_points <= self.maxN(), f"Number of points in batch {num_points} is larger than the Encoder can handle {self.maxN()}. Try increasing maxN."
             X = torch.cat([X, self.positional_encodings[:, :num_points].expand(batch_size, self.positional_dim(), num_points)], dim=1)
         # encoder layer input and output must have shape (batch size, num points, dim) because batch_first=True
         encoder_out = torch.permute(self.encoder(torch.permute(X, (0, 2, 1))), (0, 2, 1))
         # strip out the extra dimensions added by positional encoding
         return encoder_out[:, :dim, :]
+
+
+class PerfectEncoder(Encoder):
+    def __init__(self, dim: int, dim_feedforward: int, num_layers: int, width_multiplier: int = 1):
+        super().__init__(dim=dim, nheads=1, dim_feedforward=dim_feedforward, num_layers=num_layers, width_multiplier=width_multiplier, bias=False, positional_dim=0)
+
+        with torch.no_grad():
+            # first layer should compute the function
+            for attn in self.encoder.layers[0].widened_self_attn:
+                attn.in_proj_weight[:dim, :] = -1e6 * torch.eye(dim)
+                attn.in_proj_weight[dim:(2*dim), :] = torch.eye(dim)
+                attn.in_proj_weight[(2*dim):, :] = torch.eye(dim)
+                attn.out_proj.weight.data = 1e6 * torch.eye(dim)
+            self.encoder.layers[0].linear1.weight.data = torch.zeros_like(self.encoder.layers[0].linear1.weight)
+            self.encoder.layers[0].linear2.weight.data = torch.zeros_like(self.encoder.layers[0].linear2.weight)
+
+            # subsequent layers just use the skip connections
+            for layer in self.encoder.layers[1:]:
+                for attn in layer.widened_self_attn:
+                    attn.out_proj.weight.data = torch.zeros_like(attn.out_proj.weight.data)
+                layer.linear1.weight.data = torch.zeros_like(layer.linear1.weight)
+                layer.linear2.weight.data = torch.zeros_like(layer.linear2.weight)

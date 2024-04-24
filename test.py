@@ -2,8 +2,8 @@ import lightning as L
 from lightning.pytorch.cli import ArgsType, LightningCLI
 import torch
 
-from task import NearestPointDataModule, NearestPointDatasetOrthogonal
-from train import LitSequenceRegression
+from task import NearestPointDataModule, NearestPointDataset, NearestPointDatasetOrthogonal
+from train import EncoderRegression, LitSequenceRegression
 
 
 def test_model(model_module, data_module, num_test_batches, scale_batch=False):
@@ -37,8 +37,31 @@ def test_main(args: ArgsType = None):
     return cli.trainer.test(cli.model, cli.datamodule)
 
 
+class MyEncoderTestCLI(LightningCLI):
+    def add_arguments_to_parser(self, parser):
+        # parser.link_arguments("data.dim", "model.model.init_args.dim")
+        parser.link_arguments("data.dim", "model.dim")
+        parser.link_arguments("data.num_points", "model.maxN")
+        # TODO: something to make it easier to configure batch size separately from limit_test_batches
+
+
+def test_encoder_main(args: ArgsType = None):
+    cli = MyEncoderTestCLI(
+        EncoderRegression,
+        NearestPointDataModule,
+        save_config_callback=None,
+        trainer_defaults=dict(logger=False),
+        seed_everything_default=613,
+        parser_kwargs={"parser_mode": "omegaconf"},
+        args=args,
+        run=False,
+    )
+    return cli.trainer.test(cli.model, cli.datamodule)
+
+
 if __name__ == "__main__":
     test_main()
+    # test_encoder_main()
 
     # Example command line call:
     # python new_test.py --model.model=ZeroModel --data.dataset_class=task.NearestPointDatasetOrthogonal --data.dim=16 --data.num_points=2 --data.num_queries=1 --data.batch_size=512 --data.num_workers=3 --trainer.limit_test_batches=32
@@ -67,6 +90,21 @@ if __name__ == "__main__":
     #         num_points=2,
     #         num_queries=1,
     #         batch_size=512,
+    #         num_workers=3
+    #     ),
+    #     trainer=dict(
+    #         limit_test_batches=32
+    #     ),
+    # ))
+
+    # test_encoder_main(dict(
+    #     model=dict(num_layers=3, width_multiplier=3, nheads=0, dim_feedforward=2048),
+    #     data=dict(
+    #         dataset_class=NearestPointDataset,
+    #         dim=16,
+    #         num_points=8,
+    #         num_queries=-1,
+    #         batch_size=1, # 512
     #         num_workers=3
     #     ),
     #     trainer=dict(
