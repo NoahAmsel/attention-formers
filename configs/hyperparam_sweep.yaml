@@ -1,0 +1,35 @@
+model.num_layers:
+  - 2
+  - 5
+
+model.positional_dim:
+  - 0
+
+model.width_multiplier:
+  - 64
+
+model.bias:
+  - False
+  - True
+
+data.dim:
+  - 32
+
+trainer.max_epochs:
+  - 400
+
+# WARNING: this must divide the dim AFTER adding positional_dim
+model.nheads:
+  - 1
+  - 32
+
+optimizer.lr:
+  - 0.1
+  - 0.05
+  - 0.01
+  - 0.001
+  - 0.0001
+
+optimizer.weight_decay:
+  - 0
+  # - 0.1

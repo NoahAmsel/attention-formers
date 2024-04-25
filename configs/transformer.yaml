@@ -1,4 +1,4 @@
-experiment_name: widened_sweep
+experiment_name: rms_hyperparam_sweep
 trainer:
   limit_train_batches: 100
   max_epochs: 200
@@ -11,15 +11,16 @@ trainer:
     init_args:
       device: 'cuda:0'
 model:
-  # nheads:
   dim_feedforward: 2048
+  # bias:
+  # nheads:
   # num_layers:
   # positional_dim: 
   # width_multiplier:
 data:
   batch_size: 1024  # this is rated up to dim=16, num_points=2 num_queries=-1
   dataset_class: task.NearestPointDataset
-  dim: 16
+  # dim:
   num_points: 8
   num_queries: -1
   num_workers: 7
