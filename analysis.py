@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from numpy import log2
 from omegaconf import OmegaConf as oc
 import pandas as pd
 import seaborn as sns
@@ -68,45 +69,57 @@ def get_nonunique(df, col):
 
 
 if __name__ == "__main__":
-    exp_name = "widened_sweep"
+    exp_name = "fig1_4_25"
     log_path = f"/scratch/nia4240/attention-scratch/csv_logs/{exp_name}"
+    print("TODO! compute test error not train?")
 
     df = experiment_analysis(log_path)
+    ##### add Fig 1 supplemental
+    df2 = experiment_analysis("/scratch/nia4240/attention-scratch/csv_logs/fig1_supp1")
+    df2 = df2[df2["lr"] == 0.01]
+    df = pd.concat([df, df2])
+    #####
     variable_cols = list(df.nunique()[lambda x: x > 1].index)
     print(f"Variable columns:", *variable_cols)
 
-    df["rank"] = df["dim"] // df["nheads"]
+    df.rename({"loss": "Mean Squared Error"}, axis=1, inplace=True)
+    df["Rank"] = df["dim"] // df["nheads"]
     df["true num heads"] = df["nheads"] * df["width_multiplier"]
-    df["Num parameters"] = df["width_multiplier"] * df["dim"]
+    df["Params per layer"] = df["Rank"] * df["dim"] * df["true num heads"]
+    df["Params per layer power"] = log2(df["Params per layer"]) / log2(df["dim"])
+    df["Params per layer"] = df["Params per layer power"].apply(lambda x: f"$d^{{{x:.3g}}}$")
+
     # first is x axis, then style, then hue
     df = df[df.positional_dim == 0]
-    plot_vars = ["rank", "width_multiplier", "num_layers"]
+    print(df["max_epoch"].describe())
+    plot_vars = ["Rank", "Params per layer", "num_layers"]
     # plot_vars = ["true num heads", "rank", "num_layers"]
 
-    df_grouped = df.groupby(plot_vars)["loss"].min().reset_index()
-    p = sns.lineplot(data=df_grouped, x=plot_vars[0], y="loss", style=plot_vars[1], hue=plot_vars[2] if len(plot_vars) > 2 else plot_vars[1], errorbar=("pi", 100), marker="o")
+    df_grouped = df.groupby(plot_vars)["Mean Squared Error"].min().reset_index()
+    p = sns.lineplot(data=df_grouped, x=plot_vars[0], y="Mean Squared Error", style=plot_vars[1], hue=plot_vars[2] if len(plot_vars) > 2 else plot_vars[1], errorbar=("pi", 100), marker="o")
     plt.xlabel(plot_vars[0])
     plt.ylabel("MSE")
     plt.title(f"Standard Encoder: nheads = width_mult * dim / rank\ndim={get_nonunique(df, 'dim')}, MLP width={get_nonunique(df, 'dim_feedforward')}, positional dim={get_nonunique(df, 'positional_dim')}, data={get_nonunique(df, 'distribution')}")
-    plt.ylim([0, .8])
-    plt.xscale('log')
+    # plt.ylim([0, 1])
+    plt.yscale('log')
     # plt.savefig(f"results/{exp_name}.png", dpi=500)
 
     fig, axs = plt.subplots(1,3, figsize=(8, 5), sharey=True)
     for i, nlayers in enumerate(sorted(df["num_layers"].unique())):
         df_layer = df[df["num_layers"] == nlayers]
-        df_grouped = df_layer.groupby(["rank", "Num parameters"])["loss"].min().reset_index()
-        p = sns.lineplot(data=df_grouped, x="rank", y="loss", style="Num parameters", hue="Num parameters", errorbar=("pi", 100), marker="o", ax=axs[i])
-        axs[i].set(ylim=[0, .8], xlabel='', title=f"Layers = {nlayers}")
+        df_grouped = df_layer.groupby(["Rank", "Params per layer"])["Mean Squared Error"].min().reset_index()
+        p = sns.lineplot(data=df_grouped, x="Rank", y="Mean Squared Error", style="Params per layer", hue="Params per layer", errorbar=("pi", 100), marker="o", hue_order=["$d^{2}$", "$d^{2.5}$", "$d^{3}$"], style_order=["$d^{2}$", "$d^{2.5}$", "$d^{3}$"], ax=axs[i])
+        axs[i].set(xlabel='', title=f"Layers = {nlayers}")
         # axs[i].set(xscale='log')
-        if i < 2:
+        axs[i].set(yscale='log')
+        if i > 0:
             # axs[i].set(ylabel=None)
             axs[i].legend([], [], frameon=False)
-    fig.suptitle(f"Standard Encoder: num params = rank * num heads\ndim={get_nonunique(df, 'dim')}, MLP width={get_nonunique(df, 'dim_feedforward')}, positional dim={get_nonunique(df, 'positional_dim')}, data={get_nonunique(df, 'distribution')}")
     plt.ylabel("MSE")
-    fig.supxlabel("rank")
+    fig.supxlabel("Rank")
     fig.tight_layout()
-
+    # fig.suptitle(f"Transformer Encoder:\ndim={get_nonunique(df, 'dim')}, MLP width={get_nonunique(df, 'dim_feedforward')},\npositional dim={get_nonunique(df, 'positional_dim')}, data={get_nonunique(df, 'distribution')}")
+    # plt.savefig(f"paper_experiments/fig1/fig1.png", dpi=500)
 
 
 if __name__ == "__main__":

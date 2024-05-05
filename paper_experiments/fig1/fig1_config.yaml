@@ -1,0 +1,33 @@
+experiment_name: fig1_4_25
+trainer:
+  limit_train_batches: 100
+  max_epochs: 1000
+  logger:
+    - class_path: lightning.pytorch.loggers.CSVLogger
+      init_args:
+        save_dir: "/scratch/nia4240/attention-scratch/csv_logs"
+  strategy:
+    class_path: lightning.pytorch.strategies.SingleDeviceStrategy
+    init_args:
+      device: 'cuda:0'
+model:
+  dim_feedforward: 2048
+  bias: True
+  positional_dim: 0 
+  # nheads:
+  # num_layers:
+  # width_multiplier:
+data:
+  batch_size: 256
+  dataset_class: task.NearestPointDataset
+  # dim:
+  # num_points: 8
+  num_queries: -1
+  num_workers: 7
+optimizer:
+  # lr: 0.01
+  betas:
+    - .9
+    - .95
+  weight_decay: 0
+lr_scheduler:

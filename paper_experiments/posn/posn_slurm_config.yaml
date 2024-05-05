@@ -1,0 +1,14 @@
+# # Slurm and environment set up
+# slurm_log_dir: ${code_dir}/slurm_logs
+# overlay: /scratch/nia4240/overlay-50G-10M.ext3
+# conda_env: attention
+
+open_mode: append
+output: /scratch/nia4240/attention-scratch/slurm_logs/%A/%A_%a.out
+error: /scratch/nia4240/attention-scratch/slurm_logs/%A/%A_%a.err
+# must be HH:MM:SS. Not 1:00:00!!
+time: 04:00:00
+mem: 32G
+# below will affect which nodes I get assigned... probably this is what leads to data parallelism, etc.
+cpus_per_task: 8  # ${num_workers}
+gpus_per_node: 1

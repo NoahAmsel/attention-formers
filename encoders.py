@@ -114,6 +114,8 @@ class WidenedTransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
     def _sa_block(self, x: Tensor,
                   attn_mask: Optional[Tensor], key_padding_mask: Optional[Tensor], is_causal: bool = False) -> Tensor:
         out = torch.zeros_like(x)
+        # This loop is slow when the number of heads is small and the width multiplier is large
+        # But I'm not sure how to fix this without rewriting the attention layer myself
         for sa in self.widened_self_attn:
             out = out + sa(
                 x,
