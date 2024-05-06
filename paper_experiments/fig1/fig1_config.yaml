@@ -13,7 +13,8 @@ trainer:
 model:
   dim_feedforward: 2048
   bias: True
-  positional_dim: 0 
+  positional_dim: 0
+  additive_positional: False
   # nheads:
   # num_layers:
   # width_multiplier:

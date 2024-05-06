@@ -1,3 +1,9 @@
+model.positional_dim:
+  - 0
+
+model.additive_positional:
+  - True
+
 data.seed:
   - 0
   - 1
@@ -7,14 +13,13 @@ data.seed:
 
 # WARNING: this must divide the dim AFTER adding positional_dim
 model.nheads:
-  - 1
+  # - 1
   # - 2
   # - 4
   # - 8
   - 16
   - 32
   - 64
-  - 128
 
 model.num_layers:
   - 1
@@ -22,6 +27,6 @@ model.num_layers:
   # - 5
 
 model.width_multiplier:
-  - 1
+  # - 1
   - 8
   # - 64

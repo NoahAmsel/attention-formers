@@ -5,7 +5,7 @@ from torch.nn.modules.activation import MultiheadAttention
 from torch import Tensor
 from typing import Callable, Optional, Union
 
-
+# This implements RMS Norm. better than layer norm
 class MyNormalize(torch.nn.Module):
     def __init__(self, dim, scale=1, eps=0, device=None, dtype=None):
         super().__init__()
@@ -130,12 +130,17 @@ class WidenedTransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, dim: int, nheads: int, dim_feedforward: int, num_layers: int, width_multiplier: int = 1, bias: bool = True, positional_dim: int = 0, maxN: int = 0):
+    def __init__(self, dim: int, nheads: int, dim_feedforward: int, num_layers: int, width_multiplier: int = 1, bias: bool = True, positional_dim: int = 0, additive_positional: bool = False, maxN: int = 0):
         super().__init__()
         layer = WidenedTransformerEncoderLayer(width_multiplier=width_multiplier, d_model=(dim+positional_dim), nhead=nheads, dim_feedforward=dim_feedforward, dropout=0, batch_first=True, bias=bias)
         self.encoder = torch.nn.TransformerEncoder(layer, num_layers=num_layers, enable_nested_tensor=False)
         self.positional_encodings = torch.nn.Parameter(torch.empty(positional_dim, maxN))
         torch.nn.init.uniform_(self.positional_encodings, -1, 1)
+        if additive_positional:
+            self.additive_positional = torch.nn.Parameter(torch.empty(dim, maxN))
+            torch.nn.init.normal_(self.additive_positional, -1, 1)
+        else:
+            self.register_parameter('additive_positional', None)
 
     def positional_dim(self):
         return self.positional_encodings.shape[0]
@@ -146,6 +151,8 @@ class Encoder(torch.nn.Module):
     def forward(self, X):
         # X has dimensions: (batch size, dim, num points)
         batch_size, dim, num_points = X.shape
+        if self.additive_positional is not None:
+            X = X + self.additive_positional[:, :num_points].expand(batch_size, dim, num_points)
         if self.positional_dim() > 0:
             assert num_points <= self.maxN(), f"Number of points in batch {num_points} is larger than the Encoder can handle {self.maxN()}. Try increasing maxN."
             X = torch.cat([X, self.positional_encodings[:, :num_points].expand(batch_size, self.positional_dim(), num_points)], dim=1)
@@ -157,7 +164,7 @@ class Encoder(torch.nn.Module):
 
 class PerfectEncoder(Encoder):
     def __init__(self, dim: int, dim_feedforward: int, num_layers: int, width_multiplier: int = 1):
-        super().__init__(dim=dim, nheads=1, dim_feedforward=dim_feedforward, num_layers=num_layers, width_multiplier=width_multiplier, bias=False, positional_dim=0)
+        super().__init__(dim=dim, nheads=1, dim_feedforward=dim_feedforward, num_layers=num_layers, width_multiplier=width_multiplier, bias=False, positional_dim=0, additive_positional=False)
 
         with torch.no_grad():
             # first layer should compute the function
