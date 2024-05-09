@@ -1,0 +1,22 @@
+data.seed:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+
+# WARNING: this must divide the dim AFTER adding positional_dim
+model.nheads:
+  - 1
+  - 2
+  - 4
+  - 8
+  # - 16
+  # - 32
+  - 64
+
+data.num_points:
+  - 4
+  - 16
+  - 64
+  - 256
