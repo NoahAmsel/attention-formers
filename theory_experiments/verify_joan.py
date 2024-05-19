@@ -89,10 +89,11 @@ class HeadVsTarget(GegenbauerInverseTransform):
 
 
 if __name__ == "__main__":
-    dim = 20
-    G = GegenbauerTransform(dim, np.sign, 'odd')
-    degs = np.arange(20)
-    etas = np.array([G.coeff(deg) for deg in degs])
-    # etas = np.array([inner_ud(dim, np.sign, geg(dim, deg)) / norm_ud(dim, geg(dim, deg)) for deg in degs])
-    plt.plot(degs, etas)
-    plt.scatter(degs[1::2], np.abs(1/etas[1::2]))
+    # dim = 20
+    for dim in [3, 6, 10, 20, 40, 80]:
+        G = GegenbauerTransform(dim, np.sign, 'odd')
+        degs = np.arange(30)
+        etas = np.array([G.coeff(deg) for deg in degs])
+        # etas = np.array([inner_ud(dim, np.sign, geg(dim, deg)) / norm_ud(dim, geg(dim, deg)) for deg in degs])
+        # plt.plot(degs, etas)
+        plt.plot(degs[1::2], np.abs(1/etas[1::2]))
