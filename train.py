@@ -110,9 +110,9 @@ class PerfectEncoderRegression(EncoderRegression, PerfectTraining):
         QK = Q @ K.T
         return QK, VO
 
-    def get_QK_VO(self):
+    def get_QK_VO(self, ix=0):
         assert self.hparams.nheads == 1
-        return self.extract_fullrank_attn_weights(self.model.layers[0].self_attn)
+        return self.extract_fullrank_attn_weights(self.model.encoder.layers[0].widened_self_attn[ix])
 
 
 class PerfectSoftmaxAttention(LitSoftmaxAttention, PerfectTraining):
