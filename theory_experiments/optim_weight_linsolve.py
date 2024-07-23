@@ -211,13 +211,17 @@ if __name__ == "__main__":
     plt.savefig("paper_experiments/imgs/random_features.png", dpi=500)
 
 
-# if __name__ == "__main__":
-#     dim = 32
-#     distribution = SmartDistribution(dim)
-#     xxx = np.linspace(-np.pi, np.pi, 10_000)
-#     plt.rcParams['text.usetex'] = True
-#     plt.rcParams['font.size'] = 14
-#     plt.figure(figsize=(7.5, 2.5), dpi=500)
-#     plt.plot(xxx, distribution.pdf(xxx))
-#     plt.xlabel("$\cos(\mathbf{q}^\\top \mathbf{k})$")
-#     plt.ylabel("$\left|u(\mathbf{q}^\\top \mathbf{k})\\right|$")
+if __name__ == "__main__":
+    xxx = np.linspace(-np.pi, np.pi, 10_000)
+    plt.rcParams['text.usetex'] = True
+    plt.rcParams['font.size'] = 14
+    dims = [4, 6, 8]
+    fig, axs = plt.subplots(len(dims), figsize=(7.5, 2.2*len(dims)), sharex=True, dpi=500)
+    for i, dim in enumerate(dims):
+        distribution = SmartDistribution(dim)
+        axs[i].plot(xxx, distribution.pdf(xxx) * distribution.normalization)
+        axs[i].set_ylabel("$\left|u(\mathbf{q}, \mathbf{k})\\right|$")
+        axs[i].set_title(f"Dimension = {dim}")
+    plt.xlabel("$\\arccos(\mathbf{q}^\\top \mathbf{k})$")
+    plt.tight_layout()
+    plt.savefig("paper_experiments/imgs/feature_representation.png", dpi=500)
