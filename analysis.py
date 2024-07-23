@@ -147,7 +147,7 @@ def fig_perfect(csv_logs):
     df["Angle btwn.  $KQ^\\top$ and $I$"] = df["QK_angle"] * 180 / pi
     df.rename({"width_multiplier": "Num heads", "QK_norm": "$\|KQ^\\top\|_F$"}, axis=1, inplace=True)
 
-    fig, axs = plt.subplots(1, 2, figsize=(10, 3))
+    fig, axs = plt.subplots(1, 2, figsize=(8, 2.4))
     sns.boxplot(data=df, x="Num heads", y="Angle btwn.  $KQ^\\top$ and $I$", ax=axs[0])
     axs[0].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0f}°"))
     # axs[0].set_ylim([0, 180])
@@ -176,7 +176,7 @@ def fig3(csv_logs):
         lambda x: {
             (0, False): "None",
             (0, True): "Additive",
-            (x["dim"], False): "Appended",
+            (x["dim"], False): "Concatenated",
             (x["dim"], True): "Both",
         }[(x["positional_dim"], x["additive_positional"])],
         axis=1
@@ -185,7 +185,7 @@ def fig3(csv_logs):
     variable_cols = list(df.nunique()[lambda x: x > 1].index)
     print(f"Variable columns:", *variable_cols)
 
-    fig, axs = plt.subplots(1, df["num_layers"].nunique(), figsize=(8, 4), sharey=True)
+    fig, axs = plt.subplots(1, df["num_layers"].nunique(), figsize=(7 * .8, 3.5 * .8), sharey=True)
     for i, nlayers in enumerate(sorted(df["num_layers"].unique())):
         df_layer = df[df["num_layers"] == nlayers]
         p = sns.lineplot(
@@ -198,8 +198,8 @@ def fig3(csv_logs):
             # errorbar=None,
             errorbar=("pi", 100),
             marker="o",
-            hue_order=["None", "Additive", "Appended"],
-            style_order=["None", "Additive", "Appended"],
+            hue_order=["None", "Additive", "Concatenated"],
+            style_order=["None", "Additive", "Concatenated"],
             ax=axs[i],
         )
         axs[i].set(xlabel="", yscale='log', title=f"Layers = {nlayers}")
@@ -229,7 +229,7 @@ def figN(csv_logs):
     df["Params per layer"] = df["Params per layer power"].apply(lambda x: f"$d^{{{x:.3g}}}$")
 
     df["Num Points"] = df["Num Points"].apply(str)  # this is to make the hue prettier
-    plt.figure()
+    fig = plt.figure(figsize=(5.5 * .8, 4.0 * .8))
     p = sns.lineplot(
         data=df,
         x="Rank",
@@ -245,10 +245,13 @@ def figN(csv_logs):
     p.set_xticks([1,2,4,8,16,32,64])
     p.get_xaxis().set_major_formatter(ticker.ScalarFormatter())
     p.get_xaxis().set_tick_params("minor", size=0, width=0)
+    fig.tight_layout()
     plt.savefig("paper_experiments/imgs/figN.png", dpi=500)
+    return fig
 
 
 if __name__ == "__main__":
+    plt.rcParams["font.family"] = "serif"
     csv_logs_folder = "/scratch/nia4240/attention-scratch/csv_logs/"
     fig1(csv_logs_folder)
     fig_perfect(csv_logs_folder)
