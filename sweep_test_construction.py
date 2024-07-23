@@ -92,18 +92,18 @@ if __name__ == "__main__":
         results.append((dim, H, seed, squared_error))
 
     df = pd.DataFrame(results)
-    filename = f"/home/nia4240/attention-formers/results/weighted_results_sweep_april3.csv"
+    filename = f"/scratch/nia4240/attention-scratch/analysis_results/weighted_results_sweep_april3.csv"
     df.to_csv(filename, index=False)
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("results/weighted_results_sweep.csv")
+    df = pd.read_csv("/scratch/nia4240/attention-scratch/analysis_results/weighted_results_sweep.csv")
     #### these files come from older sweeps and used larger numbers of heads
-    df10 = pd.read_csv("results/weighted_results_d=10_H=65536.csv")
+    df10 = pd.read_csv("/scratch/nia4240/attention-scratch/analysis_results/weighted_results_d=10_H=65536.csv")
     df10["dim"] = 10
-    df30 = pd.read_csv("results/weighted_results_d=30_H=65536.csv")
+    df30 = pd.read_csv("/scratch/nia4240/attention-scratch/analysis_results/weighted_results_d=30_H=65536.csv")
     df30["dim"] = 30
-    df60 = pd.read_csv("results/weighted_results_d=60_H=16384.csv")
+    df60 = pd.read_csv("/scratch/nia4240/attention-scratch/analysis_results/weighted_results_d=60_H=16384.csv")
     df60["dim"] = 60
     df = pd.concat([df, df10, df30, df60], ignore_index=True)
     ####
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     plt.title(f"Measured MSE on q,k~unif, a=C^{{-1}}b")
     plt.xlabel("H")
     plt.ylabel("MSE")
-    plt.savefig("results/optimal_weight.png", dpi=500)
+    plt.savefig("/scratch/nia4240/attention-scratch/analysis_results/optimal_weight.png", dpi=500)
 
     dfdfdf = df.loc[df.dim == 10]
     dfdfdf["?"] = np.log(df.dim)/np.log(df.H)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     plt.plot(dfdfdf.H, dfdfdf["Squared Error"] / dfdfdf["?"])
 
 if __name__ == "__main__":
-    df = pd.read_csv("results/weighted_results_sweep.csv")
+    df = pd.read_csv("/scratch/nia4240/attention-scratch/analysis_results/weighted_results_sweep.csv")
     plot_dim = 64
     # should below be min?
     curve = df.groupby(["dim", "H"])["Squared Error"].mean().loc[plot_dim]
@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     plot_dim = 30
-    df = pd.read_csv(f"results/weighted_results_d={plot_dim}_H=65536.csv")
+    df = pd.read_csv(f"/scratch/nia4240/attention-scratch/analysis_results/weighted_results_d={plot_dim}_H=65536.csv")
     # should below be min? 
     curve = df.groupby("H")["Squared Error"].mean()
     plot_H(curve, plot_dim)
